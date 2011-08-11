@@ -1,5 +1,8 @@
-PDL::Graphics::Prima - a PDL interface to the Prima drawing commands.
+PDL::Drawing::Prima - a PDL interface to the Prima drawing commands.
 
+This provides the low-level (C-based) drawing commands that thread over PDL 
+arguments. It can be used to quickly draw a large variety of objects using PDL 
+threading.
 
 Author: David Mertens <dcmertens.perl.csharp@gmail.com>
 

@@ -13,15 +13,12 @@ $hash{INC} .= join( ' ' , map { $Prima::Config::Config{cincflag}.$_} @{$Prima::C
 my %DEFINES=map { my @z = split('=', $_, 2); scalar(@z)?(@z):($_ => 1)} @{$Prima::Config::Config{cdefs}};
 $hash{CCFLAGS} .= join( ' ' , map { $Prima::Config::Config{cdefflag}.$_.'='.$DEFINES{$_}} keys %DEFINES);
 
+## Required for Perl 5.14.1 ##
+$hash{CCFLAGS} .= $Config{ccflags};
+
 # Make it install my module files:
 $hash{PM} = {
-	  'Prima.pm'	=> 'blib/lib/PDL/Graphics/Prima.pm'
-	, 'Graph.pm'	=> 'blib/lib/Prima/Ex/Graph.pm'
-	, 'DataSet.pm'	=> 'blib/lib/Prima/Ex/Graph/DataSet.pm'
-	, 'Limits.pm'	=> 'blib/lib/Prima/Ex/Graph/Limits.pm'
-	, 'Scaling.pm'	=> 'blib/lib/Prima/Ex/Graph/Scaling.pm'
-	, 'Axis.pm'		=> 'blib/lib/Prima/Ex/Graph/Axis.pm'
-	, 'PlotType.pm'	=> 'blib/lib/Prima/Ex/Graph/PlotType.pm'
+	  'Prima.pm'	=> 'blib/lib/PDL/Drawing/Prima.pm'
 };
 
 WriteMakefile(%hash);
