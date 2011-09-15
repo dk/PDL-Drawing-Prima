@@ -6,6 +6,7 @@ use warnings;
 use PDL::Core::Dev;
 use ExtUtils::MakeMaker;
 use Prima::Config;
+use Config;
 
 my $pack = [qw(pdlprima.pd Prima PDL::Drawing::Prima)];
 my %hash = pdlpp_stdargs($pack);
