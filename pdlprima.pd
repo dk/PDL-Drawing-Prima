@@ -2,7 +2,9 @@
 # below, which applied to the generated module file).
 use strict;
 use warnings;
-use Carp 'croak';
+use Carp qw(croak confess);
+
+#our $PP_VERBOSE = 1;
 
 pp_addpm({At=>'Top'},<<'ModuleMaterial');
 
@@ -18,29 +20,49 @@ use Scalar::Util 'blessed';
 use Carp 'croak';
 
 # working here - use Exporter and set as 'EXPORT_OK' the functions
-# pdl_of_patterns_for and pdl_of_handles_for. I need to write them, too.
-# Their usage looks like this:
-#  my $patters = pdl_of_patterns_for($pat1, $pat2, ...);
-#  my $handles = pdl_of_handles_for($widget1, $widget2, ...);
+# pdl_of_patterns_for and pdl_of_handles_for. Their usage looks like this:
+#  my $patterns = pdl_of_patterns_for($pat1, $pat2, ...);
+#  my $handles  = pdl_of_handles_for($widget1, $widget2, ...);
 
 =head1 NAME
 
-PDL::Graphics::Prima - PDL-aware drawing functions for Prima widgets
+PDL::Drawing::Prima - PDL-aware drawing functions for Prima widgets
+
+=cut
+
+ModuleMaterial
+
+=head1 CPAN
+
+You, gentle reader, are reading this documentation off of CPAN. I know this
+because B<this> documentation does not show up in the final .pm files that are
+installed on a user's computer. I have gone to great lengths to ensure that
+the CPAN-visible documentation is up-to-date, but it may be incomplete in
+certain circumstances since PDL autogenerates some of its documentation. If
+you have any concerns regarding documentation skew, be sure to check the
+documentation on your local machine.
+
+=cut
+
+# working here - what about lineJoin or lineEnd? These should be applicable to
+# the line drawing routines?
+
+pp_addpm({At=>'Top'},<<'ModuleMaterial');
 
 =head1 SYNOPSIS
 
 Each of the methods comes with a small sample snippet. To see how it
-looks, copy this synopsis and replace the code with in the
+looks, copy this synopsis and replace the code in the
 C<Example code goes here> block with the example code.
 
  use strict;
  use warnings;
  use PDL;
- use PDL::Graphics::Prima;
+ use PDL::Drawing::Prima;
  use Prima qw(Application);
  
  my $window = Prima::MainWindow->create(
-     text    => 'PDL::Graphics::Prima Test',
+     text    => 'PDL::Drawing::Prima Test',
      onPaint => sub {
          my ( $self, $canvas) = @_;
  
@@ -64,68 +86,60 @@ C<Example code goes here> block with the example code.
 
 =head1 DESCRIPTION
 
-working here - write this
+This is a set of PDL bindings to the Prima raster drawing functions. At the
+moment, only drawing to displayed widgets is supported. I would like to add
+postscript support, but that's a little ways off yet.
 
-=head2 Line patterns
+Most of the functions given here are PDLified versions of the Prima drawing API
+functions, which are documented under L<Prima::Drawable>. In general, where the
+Prima API uses singular nouns, I here use plural nouns.
 
-It may happen that you want to draw a number of different lines, each with a
-different line patter. There is a slight subtlety in how you do this.
-
-Use byte arrays (or it will be cast to a byte array for you). All of the
-patterns must have the same number of bytes in their specification, but there's
-a decent chance that those specifications are different lenghts. In that case,
-simply pad the shorter specifications with zeroes.
-
-=head1 CONSIDERATIONS
+=head1 COORDINATE ORIGIN
 
 The Prima image coordinate origin is located in lower left corner, which is
 where you would expect to find it when creating plots. However, it is different
 from the way that many graphics libraries do their coordinates.
 
-=head1 METHODS
+=head1 FUNCTIONS
 
-Each of the functions described below actually installs itself twice, under two
-different names. For a given function <func>, the low-level implementation will
-be available under PDL::_prima_<func>_int. They are discussed below, but
-generally you should stick with the widget-oriented high-level
-implementation. The high-level implementation is installed under
-Prima::Drawable::pdl_<func> and is meant to be invoked as an object
-method:
+=head2 piddle_of_patterns_for
 
- $widget->pdl_polylines($x, $y);
+If you want PDL to thread over line patterns, but you want to use the standard
+Prima line patterns, you'll need to convert them line patterns to a piddle.
+This works very simply like this:
 
+ my $patterns = piddle_of_patterns_for(lp::Solid, lp::Dash);
 
+This creates a piddle with the two patterns so that you could have PDL thread
+over them.
 
+You can also create your own line pattern piddles by hand. I recommend you use
+byte array, since otherwise it will be converted to byte arrays for you.
+The first element of a row in your byte array
+specifies the number of pixels to be "on", the second specifies the number to be
+"off", the third specifies the number to be "on" again, the fourth "off", the
+fifth "on", etc. If that doesn't make sense, hopefull a couple of examples will
+help clarify.
 
-# working here
+This example creates the equivalent of lp::Dash:
 
+ my $dash_pattern = byte (9, 3);
 
+This example creates a piddle with four line types: lp::Solid, lp::Dash,
+lp::ShortDash, and lp::DashDot:
+ 
+ my $patterns = byte q[ 1; 9 3; 3 3; 9 3 1 3];
 
+and should be identical to
 
-
-
-If you decide you want to call the low-level functions, to reduce the
-error-processing overhead, perhaps, you need to supply each and every
-argument, in the proper order.
-
-The
-low-level functions require a huge number of arguments. I describe below
-how to infer their argument calling semantics from the provided list of
-required arguments and optional parameters, but I generaly discourage
-their use.
-The low-level functions are the raw functions generated by PDL::PP. Their error
-checking is limited and they are not exported. If you want access to these
-functions, you must invoke them with the full PDL package prefix, as:
-
-
+ my $patterns = piddle_of_patterns_for(
+     lp::Solid, lp::Dash, lp::ShortDash, lp::DashDot);
+ 
+When you create a byte piddle, all of the patterns must have the same number of
+bytes in their specification. Of course, different patterns have different
+lengths, so in that case simply pad the shorter specifications with zeroes.
 
 =cut
-
-
-
-
-
-
 
 # Builds a piddle of patterns with the appropriate sizes, etc.
 sub piddle_of_patterns_for {
@@ -158,6 +172,15 @@ sub piddle_of_patterns_for {
 	return $to_return;
 }
 
+=head2 piddle_of_handles_for
+
+You can call a single drawing function on multiple widgets and have PDL thread
+over the widgets for you. I cannot conceive of why you might commonly want to do
+this, but I can think of a couple of rare use cases, so I've implemented it. In
+order to work with multiple widgets in a single function call, you'll need to
+
+=cut
+
 sub piddle_of_handles_for {
 	# Make sure they're not being stupid:
 	croak("You must supply at least one widget from which to get a handle")
@@ -179,6 +202,16 @@ sub piddle_of_handles_for {
 	$to_return->upd_data;
 	return $to_return;
 }
+
+=head1 METHODS
+
+The methods described below are a bit unusual for PDL functions. First, they are
+not actually PDL functions at all but are methods for C<Prima::Drawable>
+objects. Second, their signatures will look a bit funny. Don't worry too much
+about that, though, because they will resemble normal signatures close enough
+that you should be able to understand them, I hope.
+
+=cut
 
 ModuleMaterial
 
@@ -244,7 +277,8 @@ To deal with all of this, the next 400 or so lines of code create some
 machinery that greatly assists in building the pp_defs that follow. A
 great deal of this code is used in THIS script (.pd files are actually
 scripts that generate .xs and .pm files) to assist in generating code.
-Anything that needs to end up in the output files will be quoted.
+Anything that needs to end up in the *output* files will be quoted, so
+hopefully your syntax highlighter will help you pick them apart.
 
 =end details
 
@@ -281,8 +315,8 @@ Drawable API, you'll know I'm missing a lot! This is because I will
 build up a number of structures over this discourse and I would
 like to keep the code and specifications for each property in one place.
 Scroll down to the 'Assembling machinery' portion of this code, about
-175 lines below, and you'll see that all the parts for each of the
-Drawable properties defined in one place.
+175 lines below, and you'll see all the parts for each of the Drawable
+properties defined in one place.
 
 =end details
 
@@ -301,7 +335,7 @@ handled by the in-pm function C<get_sorted_args_with_defaults>. It also
 adds handles to the signature, which is mandatory for each of these
 functions. To expand on the previous example, in this code:
 
- pp_def(my_func,
+ pp_def('my_func',
         Pars => 'int x(n); int y(n); ' . generate_pars_args_for( 'colors', 'rops'),
         ...
  );
@@ -315,7 +349,7 @@ function takes, and use that together with generate_pars_args_for like
 so:
 
  my @clear_properties = qw(backColors rop2s);
- pp_def(prima_clear,
+ pp_def('prima_clear',
         Pars => 'int x1(); int y1(); int x2(); int y2(); '
                  . generate_pars_args_for(@clear_properites),
         PMCode => ...
@@ -551,6 +585,12 @@ sub generate_single_setter_code_for {
 	}
 	
 	$to_return .= "\t\t\t}";
+}
+
+# working here - I think I need to create a hash like %bad_check_code_for
+# to handle per-property bad checking code
+sub generating_bad_single_setter_code_for {
+
 }
 
 sub generate_setter_code_for {
@@ -859,6 +899,8 @@ pp_def('prima_arcs',
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('arcs', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
 	Code => 
 	# I don't need any extra variables for arcs, so I'll just add the
@@ -957,6 +999,8 @@ pp_def('prima_bars',
 	Pars => 'int x1(); int y1(); int x2(); int y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('bars', \@properties, qw(x1 y1 x2 y2)),
 	Code => 
 	# I don't need any extra variables for bars, so I'll just add the
@@ -1035,6 +1079,8 @@ pp_def('prima_chords',
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('chords', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
 	Code => 
 	# I don't need any extra variables for chords, so I'll just add the
@@ -1137,6 +1183,8 @@ pp_def('prima_clears',
 			. generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('clears', \@properties, qw(x1 y1 x2 y2)),
 	Code => 
 	# I don't need any extra variables for clears, so I'll just add the
@@ -1220,6 +1268,8 @@ pp_def('prima_ellipses',
 			. generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('ellipses', \@properties, qw(x y x_diameter y_diameter)),
 	Code => 
 	# I don't need any extra variables for ellipses, so I'll just add the
@@ -1290,6 +1340,8 @@ pp_def('prima_fill_chords',
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('fill_chords', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
 	Code => 
 	# I don't need any extra variables for chords, filled or otherwise,
@@ -1360,6 +1412,8 @@ pp_def('prima_fill_ellipses',
 	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('fill_ellipses', \@properties, qw(x y x_diameter y_diameter)),
 	Code => 
 	# I don't need any extra variables for ellipses, filled or otherwise,
@@ -1429,6 +1483,8 @@ pp_def('prima_fillpolys',
 	Pars => 'x(n); y(n); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('fillpolys', \@properties, qw(x y)),
 	Code => 
 	# Begin by declaring the non-autogenerated the variables I will need
@@ -1637,6 +1693,8 @@ pp_def('prima_fill_sectors',
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('fill_sectors', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
 	Code => 
 	# I don't need any extra variables for filled sectors, so I'll just
@@ -1714,6 +1772,8 @@ pp_def('prima_flood_fills',
 	Pars => 'int x(); int y(); int color(); int singleborder(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('flood_fills', \@properties, qw(x y color singleborder)),
 	Code => 
 	# I don't need any extra variables for flood fills, so I'll just add the
@@ -1727,7 +1787,7 @@ pp_def('prima_flood_fills',
 		# properties:
 		. generate_setter_code_for(@properties)
 		. q[
-			/* Call apricot's lines function */
+			/* Call apricot's flood fill function */
 			apc_gp_flood_fill(widget_handle, $x(), $y(), (Color)$color(), $singleborder());
 		%}
 	],
@@ -1770,11 +1830,13 @@ properties, in their correct order.
 # prima_lines #
 ###############
 
-@properties = qw(colors backColors clipRects linePatterns lineWidths rops rop2s translates);
+@properties = qw(colors backColors clipRects lineEnds lineJoins linePatterns lineWidths rops rop2s translates);
 pp_def('prima_lines',
 	Pars => 'int x1(); int y1(); int x2(); int y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('lines', \@properties, qw(x1 y1 x2 y2)),
 	Code => 
 	# I don't need any extra variables for bars, so I'll just add the
@@ -1792,6 +1854,27 @@ pp_def('prima_lines',
 			apc_gp_line(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
 	],
+	BadCode => 
+	# I don't need any extra variables for bars, so I'll just add the
+	# auto-generated declaration and initialization code:
+	  initialize_for(@properties)
+	# Continue with the threadloop:
+	. q[
+		threadloop %{
+			/* Skip any points that are bad */
+			if ( $ISBAD(x1()) || $ISBAD(y1()) || $ISBAD(x2()) || $ISBAD(y2()) ) {
+				continue;
+			}
+		]
+		# Now comes the code that calls the various setters for the various
+		# properties:
+		. generate_setter_code_for(@properties)
+		. q[
+			/* Call apricot's lines function */
+			apc_gp_line(widget_handle, $x1(), $y1(), $x2(), $y2());
+		%}
+	],
+	HandleBad => 1,
 	Doc => q{
 
 =head2 pdl_lines
@@ -1816,10 +1899,29 @@ lines are meant to be independent.
 
 ");
 
+print 	  initialize_for(@properties)
+	# Continue with the threadloop:
+	. q[
+		threadloop %{
+			/* Skip any points that are bad */
+			if ( $ISBAD(x1()) || $ISBAD(y1()) || $ISBAD(x2()) || $ISBAD(y2()) ) {
+				continue;
+			}
+		]
+		# Now comes the code that calls the various setters for the various
+		# properties:
+		. generate_setter_code_for(@properties)
+		. q[
+			/* Call apricot's lines function */
+			apc_gp_line(widget_handle, $x1(), $y1(), $x2(), $y2());
+		%}
+	],
+"\n";
+
 =pod
 
 Applicable properties are likely to include handles, colors, backColors, clipRects,
-linePatterns, lineWidths,
+lineEnds, lineJoins, linePatterns, lineWidths,
 rops, rop2s, and translates. However, this list could be
 out of date or out of order. If you've installed this module on your own
 machine, the documentation is guaranteed to describe the applicable
@@ -1836,6 +1938,8 @@ pp_def('prima_pixels',
 	Pars => 'int x(); int y(); int [o] color(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('pixels', \@properties, qw(x y color)),
 	Code => 
 	# I don't need any extra variables for pixels, so I'll just add the
@@ -1847,6 +1951,8 @@ pp_def('prima_pixels',
 			/* Unlike usual, I will not use the setter code. Rather,
 			 * the is_setting_colors will determine whether or not I
 			 * set the pixel:
+			 *
+			 * working here: no initialize_for(@properties)?
 			 */
 			if (is_setting_colors) {
 				apc_gp_set_pixel(widget_handle, $x(), $y(), (Color)$colors());
@@ -1858,6 +1964,29 @@ pp_def('prima_pixels',
 			$color() = (PDL_Long) apc_gp_get_pixel(widget_handle, $x(), $y());
 		%}
 	},
+	BadCode =>
+	# I don't need any extra variables for pixels, so I'll just add the
+	# auto-generated declaration and initialization code:
+	  initialize_for(@properties)
+	# Continue with the threadloop:
+	. q{
+		threadloop %{
+			/* Unlike usual, I will not use the setter code. Rather,
+			 * the is_setting_colors, and the good state for everything, is
+			 * will determine whether or not I set the pixel:
+			 */
+			if (is_setting_colors && $ISGOOD(x()) && $ISGOOD(y())
+					&& $ISGOOD(colors())) {
+				apc_gp_set_pixel(widget_handle, $x(), $y(), (Color)$colors());
+			}
+			
+			/* No matter what, get the previous color. NOTE that the
+			 * retrieved results goes in color (singular), not colors
+			 */
+			$color() = (PDL_Long) apc_gp_get_pixel(widget_handle, $x(), $y());
+		%}
+	},
+	HandleBad => 1,
 	Doc => q{
 
 =head2 pdl_pixels
@@ -1900,6 +2029,8 @@ pp_def('prima_polylines',
 	Pars => 'x(n); y(n); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('polylines', \@properties, qw(x y)),
 	Code => 
 	# Begin by declaring the non-autogenerated the variables I will need
@@ -2080,7 +2211,6 @@ pp_def('prima_polylines',
 
 =head2 pdl_polylines
 
- working here:
   Prima Signature: (widget; x(n); y(n); properties)
 
 =for ref
@@ -2088,9 +2218,6 @@ pp_def('prima_polylines',
 Draws a multi-segment line on a widget with the given x- and y-coordinates.
 
 This is useful for making line-drawings, such as plotting data.
-
-Applicable properties include colors backColors linePatterns lineWidths
-lineJoins lineEnds rops rop2s
 
 =for example
 
@@ -2130,12 +2257,6 @@ properties, in their correct order.
 
 # Not implemented
 
-#############################
-# prima_put_images_indirect #
-#############################
-
-# Not implemented
-
 #################
 # prima_rects3d #
 #################
@@ -2157,6 +2278,8 @@ pp_def('prima_rectangles',
 	Pars => 'int x1(); int y1(); int x2(); int y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('rectangles', \@properties, qw(x1 y1 x2 y2)),
 	Code => 
 	# I don't need any extra variables for bars, so I'll just add the
@@ -2176,13 +2299,13 @@ pp_def('prima_rectangles',
 	],
 	Doc => q{
 
-=head2 pdl_bars
+=head2 pdl_rectangles
 
   Prima Signature: (widget; x1(); y1(); x2(); y2(); properties)
 
 =for ref
 
-Draws filled rectangle from corner (x1, y1) to (x2, y2).
+Draws a rectangle from corner (x1, y1) to (x2, y2).
 
 =for example
 
@@ -2216,6 +2339,8 @@ pp_def('prima_sectors',
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
 	PMCode => generate_PMCode_for('sectors', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
 	Code => 
 	# I don't need any extra variables for sectors, so I'll just add the
@@ -2288,74 +2413,9 @@ properties, in their correct order.
 
 # Not implemented
 
-pp_addpm({At=>'Bot'},<<'EOD');
-
-=head1 ERROR MESSAGE
-
-This function may throw the following exception:
-
-=head2 Your widget must be derived from Prima::Drawable
-
-This means that you tried to draw on something that is not a Prima::Drawable
-object, or a class derived from it. I don't know enough about the Prima
-internals to know if that has any hope of working, but why do it in the first
-place?
-
-=head1 TODO
-
-These are all the things I wish to do, or have done:
-
-=over
-
-=item Full Drawabel API
-
-I would like a PDL function for every drawable function in the API.
-Prima Drawable functions that currently do not have an equivalent PDL
-implementation include L<Prima::Drawable/draw_text>,
-L<Prima::Drawable/fill_spline>, L<Prima::Drawable/put_image>,
-L<Prima::Drawable/put_image_indirect>, L<Prima::Drawable/rect3d>,
-L<Prima::Drawable/rect_focus>, L<Prima::Drawable/spline>,
-L<Prima::Drawable/stretch_image>, and L<Prima::Drawable/text_out>
-
-=item PS Functionality
-
-Currently, this library only implements PDL functions using the apricot
-library. Since L<Prima::PS::Drawable> implements its own drawing
-functions, none of the PDL drawing functions will work with a PS drawable.
-They need their own specially created functions that will emit postscript
-code. It's not a hard problem, but it will take some time and work, and
-it's likely that a seperate interface would be best.
-
-=item Bad Value Support
-
-PLplot's bindings have a very sensible interpretation for bad values:
-they are omitted. This should be replicated in this library. It has been
-implemented in L</polylines> and L</fillpolys>, but not for the other
-functions.
-
-=back
-
-=head1 AUTHOR
-
-David Mertens, E<lt>dcmertens.perl@gmail.comE<gt>.
-
-=head1 SEE ALSO
-
-This is built as an extension for the Prima toolkit, http://www.prima.eu.org/, L<Prima>.
-
-This is built using (and targeted at users of) the Perl Data Language, L<PDL>.
-
-Since this amounts to a plotting package, you should check out other plotting
-packages available for PDL. Two notable examples are L<PDL::Graphics::PLplot>
-and L<PDL::Graphics::PGPLOT>.
-
-Another interface between PDL and Prima is <PDL::PrimaImage>. I am indebted to
-Dmitry for that module because it gave me a working template for this module,
-including a working Makefile.PL. Thanks Dmitry!
-
-=cut
-
-EOD
+#################
+# minmaxforpair #
+#################
 
 pp_def('minmaxforpair',
 	Pars => 'x(n); y(n); [o] min_x(); [o] min_y(); [o] max_x(); [o] max_y()',
@@ -2456,5 +2516,124 @@ Output is set bad if no pair of x/y data is good.
 );
 
 
+pp_addpm({At=>'Bot'},<<'EOD');
+
+=head1 ERROR MESSAGE
+
+These functions may throw the following exception:
+
+=head2 Your widget must be derived from Prima::Drawable
+
+This means that you tried to draw on something that is not a Prima::Drawable
+object, or a class derived from it. I don't know enough about the Prima
+internals to know if that has any hope of working, but why do it in the first
+place?
+
+=head1 PDL::PP DETAILS
+
+Those well versed in PDL::PP might ask how I manage to produce pdlified methods
+that take variable numbers of arguments. That is a long story, and it is told in
+the volumes of comments in pdlprima.pd. Give it a read if you want to know what
+goes on behind the scenes.
+
+=head1 TODO
+
+These are all the things I wish to do:
+
+=over
+
+=item Full Drawabel API
+
+I would like a PDL function for every drawable function in the API.
+Prima Drawable functions that currently do not have an equivalent PDL
+implementation include L<Prima::Drawable/draw_text>,
+L<Prima::Drawable/fill_spline>, L<Prima::Drawable/put_image>,
+L<Prima::Drawable/put_image_indirect>, L<Prima::Drawable/rect3d>,
+L<Prima::Drawable/rect_focus>, L<Prima::Drawable/spline>,
+L<Prima::Drawable/stretch_image>, and L<Prima::Drawable/text_out>
+
+=item PS Functionality
+
+Currently, this library only implements PDL functions using the apricot
+library. Since L<Prima::PS::Drawable> implements its own drawing
+functions, none of the PDL drawing functions will work with a PS drawable.
+They need their own specially created functions that will emit postscript
+code. It's not a hard problem, but it will take some time and work, and
+it's likely that a seperate interface would be best.
+
+=item Bad Value Support
+
+PLplot's bindings have a very sensible interpretation for bad values:
+they are omitted. This should be replicated in this library. It has been
+implemented in L</polylines> and L</fillpolys>, but not for the other
+functions.
+
+=back
+
+=head1 AUTHOR
+
+David Mertens, E<lt>dcmertens.perl@gmail.comE<gt>.
+
+=head1 SEE ALSO
+
+This is built as an extension for the Prima toolkit, http://www.prima.eu.org/, L<Prima>.
+
+This is built using (and targeted at users of) the Perl Data Language, L<PDL>.
+
+This is the bedrock for the plotting package L<PDL::Graphics::Prima>.
+
+Another interface between PDL and Prima is <PDL::PrimaImage>. I am indebted to
+Dmitry for that module because it gave me a working template for this module,
+including a working Makefile.PL. Thanks Dmitry!
+
+=cut
+
+EOD
+
+
 pp_export_nothing();
 pp_done();
+
+#__END__
+
+#############################
+# Remove incorrect PDL docs #
+#############################
+# removes the stupid full-signature documentation.
+
+open my $in, '<', 'Prima.pm';
+open my $out, '>', 'new_Prima.pm';
+
+my $is_discarding = 0;
+my $found_functions = 0;
+
+LINE: while (<$in>) {
+	if ($is_discarding) {
+		# Discard the line unless we find our end marker:
+		next LINE unless /=head2 pdl_/;
+		$is_discarding = 0;
+	}
+	else {
+		# Check if we *should* start discarding:
+		$is_discarding = 1 and next LINE if /=head2 prima_/;
+	}
+	
+	# Remove the spurious =head1 FUNCTIONS documentation
+	if ($found_functions and /=head1 FUNCTIONS/) {
+		# Eat everything up to the =cut
+		while(<$in> !~ /=cut/) {}
+		next LINE;
+	}
+	$found_functions++ if /=head1 FUNCTIONS/;
+	
+	s/(?<!_)prima_/pdl_/;
+	
+	print $out $_;
+}
+
+close $in;
+close $out;
+unlink 'Prima.pm';
+rename 'new_Prima.pm' => 'Prima.pm';
+
+
