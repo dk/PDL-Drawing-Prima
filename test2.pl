@@ -4,7 +4,7 @@ use blib;
 use PDL;
 use PDL::NiceSlice;
 use Prima qw(Application);
-use PDL::Graphics::Prima;
+use PDL::Drawing::Prima;
 
 my $N_osc = 150;
 my $twopi = atan2(1,1) * 8;

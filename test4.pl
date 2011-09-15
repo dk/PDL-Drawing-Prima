@@ -2,7 +2,7 @@ use blib;
  use strict;
  use warnings;
  use PDL;
- use PDL::Graphics::Prima;
+ use PDL::Drawing::Prima;
  use Prima qw(Application);
  
  my $window = Prima::MainWindow->create(

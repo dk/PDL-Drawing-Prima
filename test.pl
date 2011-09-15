@@ -4,7 +4,7 @@ use blib;
 use PDL;
 use PDL::NiceSlice;
 use Prima qw(Application);
-use PDL::Graphics::Prima;
+use PDL::Drawing::Prima;
 
 my $wDisplay = Prima::MainWindow-> create(
 	text    => 'PrimaPoly Test',
