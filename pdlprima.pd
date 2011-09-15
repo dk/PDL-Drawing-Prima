@@ -1899,25 +1899,6 @@ lines are meant to be independent.
 
 ");
 
-print 	  initialize_for(@properties)
-	# Continue with the threadloop:
-	. q[
-		threadloop %{
-			/* Skip any points that are bad */
-			if ( $ISBAD(x1()) || $ISBAD(y1()) || $ISBAD(x2()) || $ISBAD(y2()) ) {
-				continue;
-			}
-		]
-		# Now comes the code that calls the various setters for the various
-		# properties:
-		. generate_setter_code_for(@properties)
-		. q[
-			/* Call apricot's lines function */
-			apc_gp_line(widget_handle, $x1(), $y1(), $x2(), $y2());
-		%}
-	],
-"\n";
-
 =pod
 
 Applicable properties are likely to include handles, colors, backColors, clipRects,
