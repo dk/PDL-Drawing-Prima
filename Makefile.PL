@@ -1,12 +1,14 @@
 # This was written based on some guidelines from:
 # http://sourceforge.net/apps/mediawiki/pdl/index.php?title=How_to_call_C_functions_from_PDL
 
+use strict;
+use warnings;
 use PDL::Core::Dev;
 use ExtUtils::MakeMaker;
 use Prima::Config;
 
-my $pack = [qw(pdlprima.pd Prima PDL::Graphics::Prima)];
-%hash = pdlpp_stdargs($pack);
+my $pack = [qw(pdlprima.pd Prima PDL::Drawing::Prima)];
+my %hash = pdlpp_stdargs($pack);
 
 $hash{VERSION_FROM}="pdlprima.pd";
 $hash{INC} .= join( ' ' , map { $Prima::Config::Config{cincflag}.$_} @{$Prima::Config::Config{incpaths}});
