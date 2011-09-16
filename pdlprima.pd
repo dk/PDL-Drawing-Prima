@@ -2143,7 +2143,7 @@ pp_def('prima_polylines',
 					yval = $y(n => total_offset);
 					
 					/* finish this segment if we encounter nan or a bad value */
-					if (xval != xval || yval != yval		/* nan check */
+					if (xval != xval || yval != yval			/* nan check */
 						|| $ISBAD(x(n => total_offset))		/* bad value */
 						|| $ISBAD(y(n => total_offset))) {	/* checks    */
 						/* increment i so that it skips this value on
