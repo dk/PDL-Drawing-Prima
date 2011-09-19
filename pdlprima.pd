@@ -2037,25 +2037,6 @@ pp_def('prima_polylines',
 		]
 		. generate_setter_code_for(@properties)
 		. q[
-			/* Get the min/max data */
-			if (is_setting_clipRects) {
-				/* If they specified a clipping rectangle, just use
-				 * those bounds */
-				x_min = $clipLeft();
-				y_min = $clipBottom();
-				x_max = $clipRight();
-				y_max = $clipTop();
-			}
-			else {
-				/* Otherwise, get the clip rectangle for the widget
-				 * and use its bounds */
-				 clip_rect = apc_gp_get_clip_rect(widget_handle);
-				 x_min = clip_rect.left;
-				 y_min = clip_rect.bottom;
-				 x_max = clip_rect.right;
-				 y_max = clip_rect.top;
-			}
-			
 			/* Put the x-y data into the to_plot array. I am attempting
 			 * to handle infs and nans gracefully by treating the same
 			 * way as I would bad values.
@@ -2099,8 +2080,10 @@ pp_def('prima_polylines',
 					to_plot[n_to_plot].y = yval;
 				}
 				/* Call apricot's polyline function */
-				if (n_to_plot > 1)
+				if (n_to_plot > 1) {
+					printf("Calling apricot's function\n");
 					apc_gp_draw_poly(widget_handle, n_to_plot, to_plot);
+				}
 				
 				/* Keep track of the starting position */
 				i += n_to_plot;
