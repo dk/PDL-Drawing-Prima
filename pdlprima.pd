@@ -193,7 +193,7 @@ sub piddle_of_handles_for {
 	}
 	
 	# Make a piddle large enough to hold the handles:
-	my $to_return = zeroes(long, scalar(@_));
+	my $to_return = zeroes(longlong, scalar(@_));
 	
 	# put the handles in the piddle:
 	_piddle_of_handles_for(${$to_return->get_dataref}, @_);
@@ -221,10 +221,10 @@ _piddle_of_handles_for(SV * piddle_SV, ...)
 	CODE:
 		int i;
 		/* Get at the piddle's actual data array */
-		long * piddle = (long*)SvPVX(piddle_SV);
+		long long * piddle = (long long*)SvPVX(piddle_SV);
 		/* Fill the array with the handle values */
 		for (i = 1; i < items; i++) {
-			piddle[i-1] = gimme_the_mate(ST(i));
+			piddle[i-1] = (long long) gimme_the_mate(ST(i));
 		}
 
 });
@@ -305,7 +305,7 @@ C<handles> property is associated with the arg string C<int handles()>.
 =cut
 
 my %pars_args_for = (colors => 'int colors()'
-	, handles => 'int handles()'
+	, handles => 'longlong handles()'
 );
 
 =begin details
