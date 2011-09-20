@@ -1041,7 +1041,7 @@ Draws filled rectangle from corner (x1, y1) to (x2, y2).
  
  # Now that we've generated the data, call the command:
  $canvas->pdl_bars($x1s, $y1s, $x2s, $y2s
-         , colors => $colors, backColors => $colors);
+         , colors => $colors);
 
 If you put that snippet of code in the onPaint method, as
 suggested in the synopsis, a completely new set of filled rectangles
@@ -2394,9 +2394,17 @@ properties, in their correct order.
 
 # Not implemented
 
+#######################################################
+# Additional Functions that do Not Need the Machinery #
+#######################################################
+
 #################
 # minmaxforpair #
 #################
+
+=head2 minmaxforpair
+
+=cut
 
 pp_def('minmaxforpair',
 	Pars => 'x(n); y(n); [o] min_x(); [o] min_y(); [o] max_x(); [o] max_y()',
@@ -2496,6 +2504,442 @@ Output is set bad if no pair of x/y data is good.
 	},
 );
 
+#################
+# colors_to_rgb #
+#################
+# Based on value2rgb from Prima's ColorDialog.pm
+
+=color_to_rgb
+
+=cut
+
+pp_def('color_to_rgb',
+	Pars => 'int color(); int [o] rgb(n=3)',
+	Code => q{
+		$rgb(n=>0) = $color() >> 16 & 0xFF;
+		$rgb(n=>1) = $color() >> 8 & 0xFF;
+		$rgb(n=>2) = $color() & 0xFF;
+	},
+	HandleBad => 1,
+	BadCode => q{
+		if ($ISBAD(color())) {
+			loop(n) %{
+				$SETBAD(rgb());
+			%}
+		}
+		else {
+			$rgb(n=>0) = $color() >> 16 & 0xFF;
+			$rgb(n=>1) = $color() >> 8 & 0xFF;
+			$rgb(n=>2) = $color() & 0xFF;
+		}
+	},
+	Doc => <<DOCUMENTATION,
+
+=pod
+
+=for ref
+
+Converts a Prima color value to RGB representation
+
+If the input piddle has dimension (m, n, ...), the output piddle has
+dimensions (3, m, n, ...). The first element represents the red value, the
+second the green value, and the third the blue value. The resulting piddle is
+suitable for use in C<rgb_to_colors> or C<rgb_to_hsv>.
+
+The code for this routine is based on C<value2rgb> from L<Prima::colorDialog>.
+
+=cut
+
+DOCUMENTATION
+	BadDoc => <<BADDOC
+
+=for bad
+
+If C<color_to_rgb> encounters a bad value in the input, the output piddle will
+be marked as bad and the associated rgb values will all be marked with the bad
+value.
+
+=cut
+
+BADDOC
+);
+
+#################
+# rgb_to_colors #
+#################
+# Based on rgb2value from Prima's ColorDialog.pm
+
+=head2 rgb_to_color
+
+=cut
+
+pp_def('rgb_to_color',
+	Pars => 'int rgb(n=3); int [o] color()',
+	Code => q{
+		int r, g, b;
+		threadloop %{
+			/* extract and clean up the rgb values */
+			r = $rgb(n => 0);
+			if (r < 0) r = 0;
+			if (r > 255) r = 255;
+			g = $rgb(n => 1);
+			if (g < 0) g = 0;
+			if (g > 255) g = 255;
+			b = $rgb(n => 2);
+			if (b < 0) b = 0;
+			if (b > 255) b = 255;
+			
+			/* compute and return the color value */
+			$color() = b | g<<8 | r<<16;
+		%}
+	},
+	HandleBad => 1,
+	BadCode => q{
+		int r, g, b;
+		threadloop %{
+			if ($ISBAD(rgb(n=>0)) || $ISBAD(rgb(n=>1)) || $ISBAD(rgb(n=>2))) {
+				$SETBAD(color());
+			}
+			else {
+				/* extract and clean up the rgb values */
+				r = $rgb(n => 0);
+				if (r < 0) r = 0;
+				if (r > 255) r = 255;
+				g = $rgb(n => 1);
+				if (g < 0) g = 0;
+				if (g > 255) g = 255;
+				b = $rgb(n => 2);
+				if (b < 0) b = 0;
+				if (b > 255) b = 255;
+				
+				/* compute and return the color value */
+				$color() = b | g<<8 | r<<16;
+			}
+		%}
+	},
+	Doc => <<DOCUMENTATION,
+
+=pod
+
+=for ref
+
+Converts an RGB color to a Prima color value
+
+Red, green, and blue values must fall between 0 and 255. Any values outside
+those boundaries will be truncated to the nearest boundary before computing the
+color.
+
+The RGB values must be in the first dimension. In other words, the size of the
+first dimension must be three, so if the input piddle has dimensions (3, m, n,
+...), the output piddle will have dimension (m, n, ...). The resulting piddle is
+suitable for use when specifying colors to drawing primitives.
+
+The code for this routine is based on C<rgb2value> from L<Prima::colorDialog>.
+
+=cut
+
+DOCUMENTATION
+	BadDoc => <<BADDOC,
+
+=for bad
+
+If C<rgb_to_color> encounters a bad value in any of the red, green, or blue
+values of the input, the output piddle will be marked as bad and the associated
+color values will all be marked as bad.
+
+=cut
+
+BADDOC
+);
+
+##############
+# hsv_to_rgb #
+##############
+# Based on hsv2rgb from Prima's ColorDialog.pm
+
+=head2 hsv_to_rgb
+
+=cut
+
+my $hsv_to_rgb_code = q{
+			/* Get and adjust the value */
+			v = $hsv(n=>2);
+			if (v > 1) v = 1;
+			if (v < 0) v = 0;
+			/* Set value to something between 0 and 255 */
+			v *= 255;
+			
+			/* Get and adjust the saturation */
+			s = $hsv(n=>1);
+			if (s > 1) s = 1;
+			if (s < 0) s = 0;
+			
+			/* handle the special case of zero saturation */
+			if (s == 0) {
+				$rgb(m=>0) = v;
+				$rgb(m=>1) = v;
+				$rgb(m=>2) = v;
+				continue;
+			}
+			
+			/* Get and adjust the hue */
+			h = $hsv(n=>0);
+			if (h < 0) h = 0;
+			if (h > 360) h = 360;
+			
+			/* Adjust hue to run between 0 and 4 instead of 0 and 360 */
+			h /= 60;
+			
+			/* To help understand this, see */
+			/* en.wikipedia.org/wiki/HSL_and_HSV#From_HSV */
+			i = (int) h;
+			f = h - i;
+			w = v * (1 - s);
+			q = v * (1 - (s * f));
+			t = v * (1 - (s * (1 - f)));
+			
+			if (i == 0) {
+				$rgb(m=>0) = v;
+				$rgb(m=>1) = t;
+				$rgb(m=>2) = w;
+			}
+			else if (i == 1) {
+				$rgb(m=>0) = q;
+				$rgb(m=>1) = v;
+				$rgb(m=>2) = w;
+			}
+			else if (i == 2) {
+				$rgb(m=>0) = w;
+				$rgb(m=>1) = v;
+				$rgb(m=>2) = t;
+			}
+			else if (i == 3) {
+				$rgb(m=>0) = w;
+				$rgb(m=>1) = q;
+				$rgb(m=>2) = v;
+			}
+			else if (i == 4) {
+				$rgb(m=>0) = t;
+				$rgb(m=>1) = w;
+				$rgb(m=>2) = v;
+			}
+			else {
+				$rgb(m=>0) = v;
+				$rgb(m=>1) = w;
+				$rgb(m=>2) = q;
+			}
+};
+
+pp_def('hsv_to_rgb',
+	Pars => 'float+ hsv(n=3); int [o]rgb(m=3)',
+	Code => q[
+		$GENERIC(hsv) v, s, h, f, w, q, t;
+		int i;
+		
+		threadloop %{
+			] . $hsv_to_rgb_code . q[
+		%}
+	],
+	HandleBad => 1,
+	BadCode => q[
+		$GENERIC(hsv) v, s, h, f, w, q, t;
+		int i;
+		
+		threadloop %{
+			/* First check for bad values */
+			if ($ISBAD(hsv(n=>0)) || $ISBAD(hsv(n=>1)) || $ISBAD(hsv(n=>2))) {
+				loop (m) %{
+					$SETBAD(rgb());
+				%}
+				/* skip to the next hsv triple */
+				continue;
+			}
+			] . $hsv_to_rgb_code . q[
+		%}
+	],
+	Doc => <<DOCUMENTATION,
+
+=pod
+
+=for ref
+
+Converts an HSV color triple to an RGB color triple
+
+HSV stands for hue-saturation-value and is nicely represented by a cirle in a
+color palette. In this representation, the numbers representing saturation and
+value must be between 0 and 1; anything less than zero or greater than 1 will be
+truncated to the closest limit. The hue must be a value between 0 and 360, and
+again it will be truncated to the corresponding limit if that is not the case.
+For more information about HSV, see L<http://en.wikipedia.org/wiki/HSL_and_HSV>.
+
+Note that Prima's C<hsv2rgb> function, upon which this was based, had a special
+notation for a hue of -1, which always corresponded to a saturation of 0. Since
+a saturation of 0 means 'use greyscale', this function does not make any special
+use of that notation.
+
+The first dimension of the piddles holding the hsv and rgb values must be size
+3, i.e. the dimensions must look like (3, m, n, ...). The resulting piddle is
+suitable for input into L<rgb_to_color> as well as manual manipulation.
+
+The code for this routine is based on C<hsv2rgb> from L<Prima::colorDialog>.
+
+=cut
+
+DOCUMENTATION
+	BadDoc => <<BADDOC,
+
+=for bad
+
+If C<hsv_to_rgb> encounters a bad value in any of the hue, saturation, or value
+quantities, the output piddle will be marked as bad and the associated rgb
+color values will all be marked as bad.
+
+=cut
+
+BADDOC
+);
+
+##############
+# rgb_to_hsv #
+##############
+# Based on rgb2hsv from Prima's ColorDialog.pm
+
+=head2 rgb_to_hsv
+
+=cut
+
+#	if ( $r == $max) {
+#		$h = ( $g - $b) / $delta;
+#	} elsif ( $g == $max) {
+#		$h = 2 + ( $b - $r) / $delta;
+#	} else {
+#		$h = 4 + ( $r - $g) / $delta;
+#	}
+#	$h *= 60;
+#	$h += 360 if $h < 0;
+#	return $h, $s, $v;
+
+
+my $rgb_to_hsv_code = q{
+			/* Get and rescale the rgb values */
+			r = $rgb(n=>0);
+			if (r < 0) r = 0;
+			if (r > 255) r = 255;
+			r /= 255.0;
+			g = $rgb(n=>1);
+			if (g < 0) g = 0;
+			if (g > 255) g = 255;
+			g /= 255.0;
+			b = $rgb(n=>2);
+			if (b < 0) b = 0;
+			if (b > 255) b = 255;
+			b /= 255.0;
+			
+			/* compute the min and max */
+			max = r;
+			if (max < g) max = g;
+			if (max < b) max = b;
+			min = r;
+			if (g < min) min = g;
+			if (b < min) min = b;
+			
+			/* Set the value and delta */
+			v = max;
+			delta = max - min;
+			
+			/* set up a greyscale if rgb values are identical */
+			/* Note: automatically includes max = 0 */
+			if (delta == 0) {
+				$hsv(m=>0) = 0;
+				$hsv(m=>1) = 0;
+				$hsv(m=>2) = v;
+				continue;
+			}
+			s = delta / max;
+			
+			/* compute hue */
+			if (r == max) {
+				h = (g - b) / delta;
+			}
+			else if (g == max) {
+				h = 2 + (b - r) / delta;
+			}
+			else {
+				h = 4 + (r - g) / delta;
+			}
+			h *= 60;
+			if (h < 0) h += 360;
+			
+			$hsv(m=>0) = h;
+			$hsv(m=>1) = s;
+			$hsv(m=>2) = v;
+};
+
+pp_def('rgb_to_hsv',
+	Pars => 'int rgb(n=3); float+ [o]hsv(m=3)',
+	Code => q[
+		$GENERIC(hsv) r, g, b, h, s, v, max, min, delta;
+		
+		threadloop %{
+			] . $rgb_to_hsv_code . q[
+		%}
+	],
+	HandleBad => 1,
+	BadCode => q[
+		$GENERIC(hsv) r, g, b, h, s, v, max, min, delta;
+		
+		threadloop %{
+			/* First check for bad values */
+			if ($ISBAD(rgb(n=>0)) || $ISBAD(rgb(n=>1)) || $ISBAD(rgb(n=>2))) {
+				loop (m) %{
+					$SETBAD(hsv());
+				%}
+				/* skip to the next hsv triple */
+				continue;
+			}
+			] . $rgb_to_hsv_code . q[
+		%}
+	],
+	Doc => <<DOCUMENTATION,
+
+=pod
+
+=for ref
+
+Converts an RGB color triple to an HSV color triple
+
+HSV stands for hue-saturation-value and is nicely represented by a cirle in a
+color palette. In this representation, the numbers representing saturation and
+value will run between 0 and 1. The hue will be a value between 0 and 360.
+For more information about HSV, see L<http://en.wikipedia.org/wiki/HSL_and_HSV>.
+
+Note that Prima's C<rgb2hsv> function, upon which this was based, returned a
+special value if r == g == b. In that case, it returned a hue of -1 and a
+saturation of zero. In the rgb color is a greyscale and the value is based
+simply on that. This function does not make use of that special hue value; it
+simply returns a hue value of 0.
+
+The first dimension of the piddles holding the hsv and rgb values must be size
+3, i.e. the dimensions must look like (3, m, n, ...). The resulting piddle is
+suitable for manual manipulation and input into L<hsv_to_rgb>.
+
+The code for this routine is based on C<rgb2hsv> from L<Prima::colorDialog>.
+
+=cut
+
+DOCUMENTATION
+	BadDoc => <<BADDOC,
+
+=for bad
+
+If C<rgb_to_hsv> encounters a bad value in any of the red, green, or blue values
+the output piddle will be marked as bad and the associated hsv values will all
+be marked as bad.
+
+=cut
+
+BADDOC
+);
 
 pp_addpm({At=>'Bot'},<<'EOD');
 
@@ -2581,6 +3025,9 @@ pp_done();
 # Remove incorrect PDL docs #
 #############################
 # removes the stupid full-signature documentation.
+# working here - this can be removed by properly handling the Doc key in the
+# pp_def function call. When you supply an empty string, no documentation gets
+# generated. That lets me to add my own pod in the PMCode section.
 
 open my $in, '<', 'Prima.pm';
 open my $out, '>', 'new_Prima.pm';
@@ -2594,9 +3041,10 @@ LINE: while (<$in>) {
 		next LINE unless /=head2 pdl_/;
 		$is_discarding = 0;
 	}
-	else {
+	elsif (/=head2 prima_/) {
 		# Check if we *should* start discarding:
-		$is_discarding = 1 and next LINE if /=head2 prima_/;
+		$is_discarding = 1;
+		next LINE;
 	}
 	
 	# Remove the spurious =head1 FUNCTIONS documentation
