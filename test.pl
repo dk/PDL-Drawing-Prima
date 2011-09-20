@@ -18,10 +18,6 @@ my $wDisplay = Prima::MainWindow-> create(
 	},
 );
 
-use PDL::Char;
-
-$|++;
-
 sub paint
 {
 	my $p = $_[0];
@@ -41,14 +37,11 @@ sub paint
 	$x = $x->setbadif($x < 0);
 	
 	# with different colors:
-	print "About to make colors\n";
 	my $colors = pdl(cl::Black, cl::Blue, cl::Green);
-	print "About to make patterns\n";
-	my $patterns = PDL::Char->new([lp::Solid, lp::Dash, lp::DashDot]);
-	print "About to make polylines\n";
-	$p->pdl_polylines($x, $y);#, colors => $colors#, linePatterns => $patterns
-#			, lineWidths => sequence(3)*2);
-	print "Resetting line pattern\n";
+	my $patterns = PDL::Drawing::Prima::piddle_of_patterns_for(lp::Solid, lp::Dash, lp::DashDot);
+	print "Patterns are $patterns\n";
+	$p->pdl_polylines($x, $y, colors => $colors#, linePatterns => $patterns
+			, lineWidths => sequence(3)*2);
 	# Reset to a solid line style:
 	$p->linePattern(lp::Solid);
 	
@@ -60,8 +53,6 @@ sub paint
 	$y = $deg + 100;
 	$colors = $hsv->hsv_to_rgb->rgb_to_color;
 	$p->pdl_lines($x, $y, $x, $y + 50, colors => $colors);
-
-	print "All done drawing\n";
 
 =pod
 	
