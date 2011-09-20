@@ -46,6 +46,15 @@ sub paint
 	
 	# Reset to a solid line style:
 	$p->linePattern(lp::Solid);
+	
+	# Make a rainbow:
+	my $deg = sequence(360);
+	my $hsv = ones(3, 360);
+	$hsv(0, :) .= $deg->transpose;
+	$x = $deg + 50;
+	$y = $deg + 100;
+	$colors = $hsv->hsv_to_rgb->rgb_to_color;
+	$p->pdl_lines($x, $y, $x, $y + 50, colors => $colors);
 
 =pod
 	
