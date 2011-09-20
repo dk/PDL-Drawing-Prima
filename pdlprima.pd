@@ -2081,7 +2081,6 @@ pp_def('prima_polylines',
 				}
 				/* Call apricot's polyline function */
 				if (n_to_plot > 1) {
-					printf("Calling apricot's function\n");
 					apc_gp_draw_poly(widget_handle, n_to_plot, to_plot);
 				}
 				
