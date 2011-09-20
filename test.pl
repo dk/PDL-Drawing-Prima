@@ -38,9 +38,12 @@ sub paint
 	
 	# with different colors:
 	my $colors = pdl(cl::Black, cl::Blue, cl::Green);
+
+# my $patterns = byte q[ 1; 9 3; 3 3 ];
+
 	my $patterns = PDL::Drawing::Prima::piddle_of_patterns_for(lp::Solid, lp::Dash, lp::DashDot);
 	print "Patterns are $patterns\n";
-	$p->pdl_polylines($x, $y, colors => $colors#, linePatterns => $patterns
+	$p->pdl_polylines($x, $y, colors => $colors, linePatterns => $patterns
 			, lineWidths => sequence(3)*2);
 	# Reset to a solid line style:
 	$p->linePattern(lp::Solid);
