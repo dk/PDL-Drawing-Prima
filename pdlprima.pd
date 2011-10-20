@@ -87,7 +87,7 @@ C<Example code goes here> block with the example code.
 =head1 DESCRIPTION
 
 This is a set of PDL bindings to the Prima raster drawing functions. At the
-moment, only drawing to displayed widgets is supported. I would like to add
+moment, only drawing on displayed widgets is supported. I would like to add
 postscript support, but that's a little ways off yet.
 
 Most of the functions given here are PDLified versions of the Prima drawing API
@@ -174,10 +174,20 @@ sub piddle_of_patterns_for {
 
 =head2 piddle_of_handles_for
 
-You can call a single drawing function on multiple widgets and have PDL thread
-over the widgets for you. I cannot conceive of why you might commonly want to do
-this, but I can think of a couple of rare use cases, so I've implemented it. In
-order to work with multiple widgets in a single function call, you'll need to
+You can call a single drawing function on multiple widgets and have PDL
+thread over the widgets for you. Why would anyone ever want to do that, you
+ask? The only reason I can imagine is if somebody wanted to create a new
+set of widget skins, in which case you'd want to call the same drawing
+function on various widgets (with various parameters, obviously). Will this
+ever happen in practice? Probably not, but if I can come up with a use case,
+I'm sure somebody else can come up with a different use case, so I've
+implemented it.
+
+When you call C<piddle_of_handles_for>, you get back a PDL_Long piddle. The
+values returned are the actual integer values used as the handles to the
+widgets, i.e. they are pointers, which means you B<SHOULD NOT MODIFY THEM>
+or you will almost certainly get a segmentation fault. I believe there is
+a way to mark a piddle as read-only, but I'm not quite sure how to do that.
 
 =cut
 
@@ -215,6 +225,8 @@ that you should be able to understand them, I hope.
 
 ModuleMaterial
 
+
+
 pp_addxs('', q{
 void
 _piddle_of_handles_for(SV * piddle_SV, ...)
@@ -228,6 +240,7 @@ _piddle_of_handles_for(SV * piddle_SV, ...)
 		}
 
 });
+
 =for details
 As far as I can tell, PDL::PP only defines the '_<func>_int' form of a function
 when you specify a PMCode in the pp_def. I can't figure out where this happens
@@ -240,12 +253,16 @@ and http://www.physics.emory.edu/~weeks/graphics/howtops1.html
 pp_addhdr( <<HEADER );
 
 /* apricot is the (strangely named) header file that contains all of the
- * cross-platform functions.
- */
+ * cross-platform functions. */
 
 #undef WORD
 #include <apricot.h>
-#define MY_BIG_NUMBER 1000000
+
+/* This is used to replace infinities and other large values with something
+ * that will 'look right' on the screen. I used to have it at 100,000, but
+ * that gave weird results, so I have switched to a number that works for
+ * signed 16-bit integers. */
+#define MY_BIG_NUMBER 32000
 
 HEADER
 
@@ -261,7 +278,7 @@ Each of the functions in this module wrap a PDL function around the
 Prima API. The goal of the PDL functions is to allow the caller to
 provide as many or as few tweaks to their drawing as they wish, so if
 they want to draw three different polylines with three different line
-styles, they should be able to do this:
+styles (as demonstrated in test.pl), they should be able to do this:
 
  $widget->pdl_polylines($xs, $ys, {linePatterns => $patterns});
 
@@ -298,7 +315,9 @@ to draw lines with different colors, I would write the following Pars:
 
 So in the hash below, the property C<colors> is associated with the
 arg string C<int colors()>, and (not-optional, but specially processed)
-C<handles> property is associated with the arg string C<int handles()>.
+C<handles> property is associated with the arg string C<longlong handles()>.
+(longlong is necessary here so that the integer data type is large enough to
+hold 64-bit pointer addresses.)
 
 =end details
 
@@ -342,7 +361,7 @@ functions. To expand on the previous example, in this code:
 
 pp_def sees a parameter list that looks like this:
 
- 'int x(n); int y(n); int handles(); int colors(); int rops()'
+ 'int x(n); int y(n); longlong handles(); int colors(); int rops()'
 
 To use this, I will create a list of properties that the to-be-defined
 function takes, and use that together with generate_pars_args_for like
@@ -419,17 +438,16 @@ sub generate_init_args_for {
 
 =begin details
 
-The only way to determine from within PP code whether an optional
-parameter was passed in or not is to pass an additional structure to
-the PP code with that information. The structure I use for this is
-the original hash passed in as
-an argument to the Perl-level function. If the user specified a value
-for a property, it will be present in the hash. If they did not, it will
-not be there.
+The only way to determine from within PP code whether an optional parameter
+was passed in or not is to pass an additional structure to the PP code with
+that information. The structure I use for this is the original hash passed
+in as an argument to the Perl-level function. If the user specified a value
+for a property, it will be present in the hash. If they did not, it will not
+be there.
 
-So, for each of the graphics properties that the user can supply for a
-given function, I will want to have code in the PP Code section that
-looks something like this:
+So, for each of the graphics properties that the user can supply for a given
+function, I will want to have code in the PP Code section that looks
+something like this:
 
  SV* arg_hash_HV = SvRV(arg_rev_sv);
  int is_setting_rops;
