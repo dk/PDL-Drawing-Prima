@@ -250,7 +250,7 @@ and http://www.physics.emory.edu/~weeks/graphics/howtops1.html
 
 =cut
 
-pp_addhdr( <<HEADER );
+pp_addhdr( <<'HEADER' );
 
 /* apricot is the (strangely named) header file that contains all of the
  * cross-platform functions. */
@@ -258,11 +258,260 @@ pp_addhdr( <<HEADER );
 #undef WORD
 #include <apricot.h>
 
-/* This is used to replace infinities and other large values with something
- * that will 'look right' on the screen. I used to have it at 100,000, but
- * that gave weird results, so I have switched to a number that works for
- * signed 16-bit integers. */
-#define MY_BIG_NUMBER 32000
+/* This is based on Prima's maximum coordinate size, which is 16383. I have
+ * reduced it in order to accomodate certain coordinate transforms that Prima
+ * performs:  */
+#define MY_BIG_NUMBER 10000
+
+
+
+/* Apricot uses some pretty dumb methods for correcting values that are too big.
+ * The way it handles values clashes with the sheer range of values that I want
+ * to be able to display, so I need to adjust those values somehow. The next
+ * struct and 250 lines of code examines pairs of values for nan, inf, and
+ * exceedingly large values. If the data cannot be drawn as-is, it calculates
+ * values that can be drawn instead or indicates if the calling routine should
+ * simply skip the values. */
+
+typedef struct {
+	/* two pairs under consideration */
+	double x1;
+	double x2;
+	double y1;
+	double y2;
+	
+	/* Temporary storage */
+	double tmp_xs[2];
+	double tmp_ys[2];
+	int offset;
+	
+	/* Dimensions of the widget */
+	int width;
+	int height;
+} big_number_container;
+
+/* I use these functions within the real function, which is the first one that
+ * is actually defined below. */
+int _too_many_bad_values(big_number_container * d);
+int _is_drawable_as_is(big_number_container * d);
+void _check_start_within_bounding_box(big_number_container * d);
+void _handle_horizontal_line(big_number_container * d);
+void _handle_vertical_line(big_number_container * d);
+void _check_crosses_left_edge(big_number_container * d, double y0, double slope);
+void _check_crosses_bottom_edge(big_number_container * d, double y0, double slope);
+void _check_crosses_right_edge(big_number_container * d, double y0, double slope);
+void _check_crosses_top_edge(big_number_container * d, double y0, double slope);
+void _check_cross_error (big_number_container * d);
+void _set_returns_preserving_order (big_number_container * d);
+
+/* Name    : _check_for_big_numbers
+ * Expects : a pointer to the just-defined struct in which (x1, y1) and (x2, y2)
+ *         : are the pars of points under consideration.
+ * Returns : 0 when line should not be drawn
+ *         : 1 when points are good as-is
+ *         : 2 when points within the struct have been updated
+ */
+
+int _check_for_big_numbers(big_number_container * d) {
+	/* This line cannot be drawn if it is strictly above, below, to the left, or
+	 * to the right of the view box */
+	if (d->x1 < 0 && d->x2 < 0 || d->x1 > d->width && d->x2 > d->width
+			|| d->y1 < 0 && d->y2 < 0 || d->y1 > d->height && d->y2 > d->height)
+		return 0;
+	
+	if (_too_many_bad_values(d)) return 0;
+	if (_is_drawable_as_is(d)) return 1;
+	
+	/* If we are here, we must take corrective measures. Find if any part of the
+	 * line actually falls within the box, and figure out where it enters or
+	 * leaves. */
+	d->offset = 0;
+	
+	_check_start_within_bounding_box(d);
+	
+	/* Before we go further, check for horizontal or vertical lines. */
+	if (d->y1 == d->y2) _handle_horizontal_line(d);
+	else if (d->x1 == d->x2) _handle_vertical_line(d);
+	else {
+		/* We have a line with a slope. See which boundaries it crosses, if any.
+		 * Note that the order of the checks is very important as some of the
+		 * inequalities are strict and others are not. */
+
+		double slope = (d->y2 - d->y1) / (d->x2 - d->x1);
+		double y0 = d->y1 - slope * (d->x1);
+		_check_crosses_left_edge(d, y0, slope);
+		_check_crosses_bottom_edge(d, y0, slope);
+		_check_crosses_right_edge(d, y0, slope);
+		_check_crosses_top_edge(d, y0, slope);
+		_check_cross_error(d);
+		
+		/* At this point, if the offset is not 2, the line does not intersect
+		 * the view box, so the line will not be drawn and we can return 0 to
+		 * indicate that. */
+		if (d->offset != 2) return 0;
+	}
+	
+	_set_returns_preserving_order(d);
+	return 2;
+}
+
+/* checks for nan and inf. */
+int _too_many_bad_values(big_number_container * d) {
+	/* One nan is one too many */
+	if (d->x1 != d->x1 || d->x2 != d->x2 || d->y1 != d->y1 || d->y2 != d->y2)
+		return 1;
+	
+	/* This line should be skipped if two or more of its values are inf */
+	int inf_count = 0;
+	if (d->x1 + 1 == d->x1) inf_count++;
+	if (d->x2 + 1 == d->x2) inf_count++;
+	if (d->y1 + 1 == d->y1) inf_count++;
+	if (d->y2 + 1 == d->y2) inf_count++;
+	if (inf_count > 1) return 1;
+	
+	return 0;
+}
+
+/* Checks if the values are within Prima's limits. This *MUST* not be called
+ * before _too_many_bad_values!!! */
+int _is_drawable_as_is(big_number_container * d) {
+	if (		-MY_BIG_NUMBER <= d->x1 && d->x1 <= MY_BIG_NUMBER
+			&&	-MY_BIG_NUMBER <= d->y1 && d->y1 <= MY_BIG_NUMBER
+			&&	-MY_BIG_NUMBER <= d->x2 && d->x2 <= MY_BIG_NUMBER
+			&&	-MY_BIG_NUMBER <= d->y2 && d->y2 <= MY_BIG_NUMBER)
+		return 1;
+	return 0;
+}
+
+void _check_start_within_bounding_box(big_number_container * d) {
+	/* Does this line start within the bounding box? */
+	if (d->x1 >= 0 && d->x1 <= d->width && d->y1 >= 0 && d->y1 <= d->height) {
+		d->tmp_xs[0] = d->x1;
+		d->tmp_ys[0] = d->y1;
+		d->offset++;
+	}
+	/* or does it end within the bouding box? */
+	else if (d->x2 >= 0 && d->x2 <= d->width && d->y2 >= 0 && d->y2 <= d->height) {
+		d->tmp_xs[0] = d->x2;
+		d->tmp_ys[0] = d->y2;
+		d->offset++;
+	}
+}
+
+void _handle_horizontal_line(big_number_container * d) {
+	/* Did the line start or end in the box? */
+	if (d->offset == 1) {
+		/* Yes, so replace the other coordinate with the box's bound */
+		d->tmp_ys[1] = d->y1;
+		if (d->x1 < 0 || d->x2 < 0)					d->tmp_xs[1] = 0;
+		if (d->x1 > d->width || d->x2 > d->width)	d->tmp_xs[1] = d->width;
+	}
+	else {
+		/* No, so set the coordinates to the box's bound at the same y */
+		d->tmp_xs[0] = 0;
+		d->tmp_xs[1] = d->width;
+		d->tmp_ys[0] = d->tmp_ys[1] = d->y1;
+	}
+	d->offset++;
+}
+
+void _handle_vertical_line(big_number_container * d) {
+	/* Did the line start or end in the box? */
+	if (d->offset == 1) {
+		/* Yes, so replace the other coordinate with the box's bound */
+		d->tmp_xs[1] = d->x1;
+		if (d->y1 < 0			|| d->y2 < 0)			d->tmp_ys[1] = 0;
+		if (d->y1 > d->height	|| d->y2 > d->height)	d->tmp_ys[1] = d->height;
+	}
+	else {
+		/* No, so set the coordinates to the box's bound at the same x */
+		d->tmp_xs[0] = d->tmp_xs[1] = d->x1;
+		d->tmp_ys[0] = 0;
+		d->tmp_ys[1] = d->height;
+	}
+	d->offset++;
+}
+
+void _check_crosses_left_edge(big_number_container * d, double y0, double slope) {
+	/* Does this line cross the vertical line x = 0? */
+	if ((d->x1 < 0 || d->x2 < 0) && y0 >= 0 && y0 <= d->height) {
+		d->tmp_xs[d->offset] = 0;
+		d->tmp_ys[d->offset] = y0;
+		d->offset++;
+	}
+}
+
+void _check_crosses_bottom_edge(big_number_container * d, double y0, double slope) {
+	/* Can't cross bottom if both positive */
+	if (d->y1 > 0 && d->y2 > 0) return;
+	
+	double x0 = -y0 / slope;
+	/* x == 0 was handled by the left edge check, so this only succeeds if x0 is
+	 * strictly greater than zero. */
+	if (x0 > 0 && x0 <= d->width) {
+		d->tmp_xs[d->offset] = x0;
+		d->tmp_ys[d->offset] = 0;
+		d->offset++;
+	}
+}
+
+void _check_crosses_right_edge(big_number_container * d, double y0, double slope) {
+	/* Can't cross right edge if both x values are less than it */
+	if (d->x1 < d->width && d->x2 < d->width) return;
+	
+	double y_r = y0 + slope * d->width;
+	/* Note, y == 0 was handled by the bottom edge check, so this only succeeds
+	 * if  yr is strictly greater than zero. */
+	if (y_r > 0 && y_r <= d->height) {
+		d->tmp_xs[d->offset] = d->width;
+		d->tmp_ys[d->offset] = y_r;
+		d->offset++;
+	}
+}
+
+void _check_crosses_top_edge(big_number_container * d, double y0, double slope) {
+	/* Can't cross the top edge if both y values are less than it */
+	if (d->y1 > d->height || d->y2 > d->height) return;
+	
+	double x_t = (d->height - y0) / slope;
+	/* Note, x == 0 and x == width were handled above, so this checks for
+	 * strict inequality */
+	if (x_t > 0 && x_t < d->width) {
+		d->tmp_xs[d->offset] = x_t;
+		d->tmp_ys[d->offset] = d->height;
+		d->offset++;
+	}
+}
+
+void _check_cross_error (big_number_container * d) {
+	/* Spew a message if there is one or three intersection points, as that
+	 * should never occurr and indicates an internal error. */
+	if (d->offset == 1 || d->offset > 2) {
+		fprintf(stderr, "Internal error in _check_for_big_numbers:\n");
+		fprintf(stderr, "  offset should be 0 or 2, but it is %d\n"
+			, d->offset);
+	}
+}
+
+void _set_returns_preserving_order (big_number_container * d) {
+	/* This only gets called when it's time to change x1, x2, y1, and y2.
+	 * Set them to the values in the temporary array, but take care to
+	 * preserve the original ordering. */
+	if (	d->x1 != d->x2 && (d->x1 < d->x2) == (d->tmp_xs[0] < d->tmp_xs[1])
+		||	d->y1 != d->y1 && (d->y1 < d->y2) == (d->tmp_ys[0] < d->tmp_ys[1]))
+	{
+		d->x1 = d->tmp_xs[0];
+		d->x2 = d->tmp_xs[1];
+		d->y1 = d->tmp_ys[0];
+		d->y2 = d->tmp_ys[1];
+	}
+	else {
+		d->x1 = d->tmp_xs[1];
+		d->x2 = d->tmp_xs[0];
+		d->y1 = d->tmp_ys[1];
+		d->y2 = d->tmp_ys[0];
+	}
+}
 
 HEADER
 
@@ -1540,6 +1789,8 @@ pp_def('prima_fillpolys',
 					continue;
 				}
 
+				/* This is a hack, but I'm leaving it like this for now. :-( */
+				
 				/* handle infinities */
 				if (xval == xval + 1) {
 					if (xval < 0)
@@ -1653,20 +1904,26 @@ pp_def('prima_fillpolys',
 
 =for ref
 
-Draws and fills a polygon with arbitrary edge vertices.
+Draws and fills a polygon with (mostly) arbitrary edge vertices.
 
 NOTE: there is B<no> underscore between C<fill> and C<poly>, which is
 different from the other C<fill> methods!
 
-This is most useful for drawing line drawing of crystals and rocks, and
-for visualizing integrals. Splines would be the better choice if you
-want to draw curves, but a PDL interface to splines is not (yet)
-implemented.
+This is useful for drawing arbitrary filled shapes and for visualizing
+integrals. Splines would be the better choice if you want to draw curves, but
+a PDL interface to splines is not (yet) implemented.
 
-Unlike most of the other methods, this one actually makes an effort to
-process bad values. In addition to the IEEE bad values of C<nan> and
-C<inf>, PDL has support for bad values. All of these should be handled
-reasonably well by C<pdl_fillpolys>. If you give it 
+Unlike most of the other methods, this one actually makes a half-hearted
+effort to process bad values. In addition to the IEEE bad values of C<nan>
+and C<inf>, PDL has support for bad values. Unlike in C<pdl_polys>,
+C<pdl_fillpolys> will simply skip any point that is marked as bad, but drawing
+the rest of the polygon. In other words, it reduces the degree of your polygon
+by one. If you sent it four points and one of them was bad, you would get a
+triangle instead of a quadralaters.
+
+Infinities are also handled, though not perfectly. There are a few
+situations where C<pdl_polys> will correctly draw what you mean but
+C<pdl_fillpolys> will not.
 
 Because this skips bad data altogether, if you have too much bad data
 (i.e. fewer than three good points), the routine will simply not draw
@@ -1857,7 +2114,7 @@ pp_def('prima_lines',
 	NoPthread => 1,
 	PMCode => generate_PMCode_for('lines', \@properties, qw(x1 y1 x2 y2)),
 	Code => 
-	# I don't need any extra variables for bars, so I'll just add the
+	# I don't need any extra variables for lines, so I'll just add the
 	# auto-generated declaration and initialization code:
 	  initialize_for(@properties)
 	# Continue with the threadloop:
@@ -1873,7 +2130,7 @@ pp_def('prima_lines',
 		%}
 	],
 	BadCode => 
-	# I don't need any extra variables for bars, so I'll just add the
+	# I don't need any extra variables for lines, so I'll just add the
 	# auto-generated declaration and initialization code:
 	  initialize_for(@properties)
 	# Continue with the threadloop:
@@ -2035,12 +2292,9 @@ pp_def('prima_polylines',
 	# Begin by declaring the non-autogenerated the variables I will need
 	q{
 		Point * to_plot;
-		int n_size, i, n_to_plot;
-		double xval, yval;
-		/* Need these to do reasonable cutting-out of data outside the
-		 * plotting window
-		 */
-		int x_min, x_max, y_min, y_max;
+		int n_size, i, j;
+		int width, height, check_result;
+		big_number_container to_check;
 	}
 	# Add the auto-generated declaration and initialization code:
 	. initialize_for(@properties)
@@ -2059,51 +2313,49 @@ pp_def('prima_polylines',
 			 * to handle infs and nans gracefully by treating the same
 			 * way as I would bad values.
 			 */
-			for(i = 0; i < n_size; /* no action */) {
-				for(n_to_plot = 0; n_to_plot + i < n_size; n_to_plot++) {
-					int total_offset = n_to_plot + i;
-					xval = $x(n => total_offset);
-					yval = $y(n => total_offset);
+			i = 0;
+			NEXT_GOOD_CODE_I: while(i < n_size - 1) {
+				to_plot[0].x = to_check.x1 = $x(n => i);
+				to_plot[0].y = to_check.y1 = $y(n => i);
+				i++;
+				
+				for(j = 1; i < n_size; i++, j++) {
+					to_check.x2 = $x(n => i);
+					to_check.y2 = $y(n => i);
 					
-					/* Finish this segment if we encounte nan */
-					if (xval != xval || yval != yval) {		/* nan check */
-						/* increment i so that it skips this value on
-						 * the next round
-						 */
-						i++;
-						break;
+					check_result = _check_for_big_numbers(&to_check);
+					
+					if (check_result == 0) {
+						/* That means "don't plot this segment", which means
+						 * I should plot the other pieces and start over with
+						 * a new sub-segment. */
+						if (j > 1) apc_gp_draw_poly(widget_handle, j-1, to_plot);
+						goto NEXT_GOOD_CODE_I;
+					}
+					if (check_result > 1) {
+						/* That means "I had to adjust x and y", which means
+						 * I should plot the current sub-segment and start a
+						 * new sub-segment. */
+						if (j == 1) {
+							to_plot[0].x = to_check.x1;
+							to_plot[0].y = to_check.y1;
+						}
+						to_plot[j].x = to_check.x2;
+						to_plot[j].y = to_check.y2;
+						
+						apc_gp_draw_poly(widget_handle, j+1, to_plot);
+						goto NEXT_GOOD_CODE_I;
 					}
 					
-					/* handle infinities */
-					if (xval == xval + 1) {
-						if (xval < 0)
-							xval = -MY_BIG_NUMBER;
-						else
-							xval = MY_BIG_NUMBER;
-					}
-					if (yval == yval + 1) {
-						if (yval < 0)
-							yval = -MY_BIG_NUMBER;
-						else
-							yval = MY_BIG_NUMBER;
-					}
-					
-					/* Handle very large values */
-					if (yval > MY_BIG_NUMBER) yval = MY_BIG_NUMBER;
-					if (xval > MY_BIG_NUMBER) xval = MY_BIG_NUMBER;
-					if (yval < -MY_BIG_NUMBER) yval = -MY_BIG_NUMBER;
-					if (xval < -MY_BIG_NUMBER) xval = -MY_BIG_NUMBER;
-					
-					to_plot[n_to_plot].x = xval;
-					to_plot[n_to_plot].y = yval;
-				}
-				/* Call apricot's polyline function */
-				if (n_to_plot > 1) {
-					apc_gp_draw_poly(widget_handle, n_to_plot, to_plot);
+					to_plot[j].x = to_check.x2;
+					to_plot[j].y = to_check.y2;
+					to_check.x1 = to_check.x2;
+					to_check.y1 = to_check.y2;
 				}
 				
-				/* Keep track of the starting position */
-				i += n_to_plot;
+				/* The only way we reach here is if the last segment was fine,
+				 * but was not drawn, so draw it. */
+				apc_gp_draw_poly(widget_handle, j, to_plot);
 			}
 		%}
 		
@@ -2115,8 +2367,9 @@ pp_def('prima_polylines',
 	# Begin by declaring the non-autogenerated the variables I will need
 	q{
 		Point * to_plot;
-		int n_size, i, n_to_plot;
-		double xval, yval;
+		int n_size, i, j;
+		int width, height, check_result;
+		big_number_container to_check;
 	}
 	# Add the auto-generated declaration and initialization code:
 	. initialize_for(@properties)
@@ -2135,53 +2388,49 @@ pp_def('prima_polylines',
 			 * to handle infs and nans gracefully by treating the same
 			 * way as I would bad values.
 			 */
-			for(i = 0; i < n_size; /* no action */) {
-				for(n_to_plot = 0; n_to_plot + i < n_size; n_to_plot++) {
-					/* Get the values from the array */
-					int total_offset = n_to_plot + i;
-					xval = $x(n => total_offset);
-					yval = $y(n => total_offset);
-					
-					/* finish this segment if we encounter nan or a bad value */
-					if (xval != xval || yval != yval			/* nan check */
-						|| $ISBAD(x(n => total_offset))		/* bad value */
-						|| $ISBAD(y(n => total_offset))) {	/* checks    */
-						/* increment i so that it skips this value on
-						 * the next round
-						 */
-						i++;
-						break;
-					}
-					else {
-						/* handle infinities */
-						if (xval == xval + 1) {
-							if (xval < 0)
-								xval = -MY_BIG_NUMBER;
-							else
-								xval = MY_BIG_NUMBER;
-						}
-						if (yval == yval + 1) {
-							if (yval < 0)
-								yval = -MY_BIG_NUMBER;
-							else
-								yval = MY_BIG_NUMBER;
-						}
-						/* Handle very large values */
-						if (yval > MY_BIG_NUMBER) yval = MY_BIG_NUMBER;
-						if (xval > MY_BIG_NUMBER) xval = MY_BIG_NUMBER;
-						if (yval < -MY_BIG_NUMBER) yval = -MY_BIG_NUMBER;
-						if (xval < -MY_BIG_NUMBER) xval = -MY_BIG_NUMBER;
-						
-						to_plot[n_to_plot].x = xval;
-						to_plot[n_to_plot].y = yval;
-					}
-				}
-				/* Call apricot's polyline function */
-				if (n_to_plot > 1)
-					apc_gp_draw_poly(widget_handle, n_to_plot, to_plot);
+			i = 0;
+			NEXT_BAD_CODE_I: while(i < n_size - 1) {
+				to_plot[0].x = to_check.x1 = $x(n => i);
+				to_plot[0].y = to_check.y1 = $y(n => i);
+				i++;
+				if ($ISBAD(x(n => i)) || $ISBAD(y(n => i))) goto NEXT_BAD_CODE_I;
 				
-				/* Keep track of the starting position */
-				i += n_to_plot;
+				for(j = 1; i < n_size; i++, j++) {
+					to_check.x2 = $x(n => i);
+					to_check.y2 = $y(n => i);
+					
+					if ($ISBAD(x(n => i)) || $ISBAD(y(n => i))
+						|| !(check_result = _check_for_big_numbers(&to_check))) {
+						/* That means "don't plot this segment", which means
+						 * I should plot the other pieces and start over with
+						 * a new sub-segment. */
+						if (j > 1) apc_gp_draw_poly(widget_handle, j-1, to_plot);
+						goto NEXT_BAD_CODE_I;
+					}
+					if (check_result > 1) {
+						/* That means "I had to adjust x and y", which means
+						 * I should plot the current sub-segment and start a
+						 * new sub-segment. */
+						if (j == 1) {
+							to_plot[0].x = to_check.x1;
+							to_plot[0].y = to_check.y1;
+						}
+						to_plot[j].x = to_check.x2;
+						to_plot[j].y = to_check.y2;
+						
+						apc_gp_draw_poly(widget_handle, j+1, to_plot);
+						goto NEXT_BAD_CODE_I;
+					}
+					
+					to_plot[j].x = to_check.x2;
+					to_plot[j].y = to_check.y2;
+					to_check.x1 = to_check.x2;
+					to_check.y1 = to_check.y2;
+				}
+				
+				/* The only way we reach here is if the last segment was fine,
+				 * but was not drawn, so draw it. */
+				apc_gp_draw_poly(widget_handle, j, to_plot);
 			}
 		%}
 		
