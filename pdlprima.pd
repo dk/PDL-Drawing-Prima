@@ -250,7 +250,7 @@ and http://www.physics.emory.edu/~weeks/graphics/howtops1.html
 
 =cut
 
-pp_addhdr( <<'HEADER' );
+pp_addhdr('# line ' . (__LINE__ + 2) . ' "pdlprima.pd"'. <<'HEADER' );
 
 /* apricot is the (strangely named) header file that contains all of the
  * cross-platform functions. */
@@ -261,7 +261,7 @@ pp_addhdr( <<'HEADER' );
 /* This is based on Prima's maximum coordinate size, which is 16383. I have
  * reduced it in order to accomodate certain coordinate transforms that Prima
  * performs:  */
-#define MY_BIG_NUMBER 10000
+#define MY_BIG_NUMBER 16000
 
 
 
@@ -292,6 +292,8 @@ typedef struct {
 
 /* I use these functions within the real function, which is the first one that
  * is actually defined below. */
+int is_inf(double val);
+int is_nan(double val);
 int _too_many_bad_values(big_number_container * d);
 int _is_drawable_as_is(big_number_container * d);
 void _check_start_within_bounding_box(big_number_container * d);
@@ -321,7 +323,7 @@ int _check_for_big_numbers(big_number_container * d) {
 	
 	if (_too_many_bad_values(d)) return 0;
 	if (_is_drawable_as_is(d)) return 1;
-	
+
 	/* If we are here, we must take corrective measures. Find if any part of the
 	 * line actually falls within the box, and figure out where it enters or
 	 * leaves. */
@@ -330,8 +332,10 @@ int _check_for_big_numbers(big_number_container * d) {
 	_check_start_within_bounding_box(d);
 	
 	/* Before we go further, check for horizontal or vertical lines. */
-	if (d->y1 == d->y2) _handle_horizontal_line(d);
-	else if (d->x1 == d->x2) _handle_vertical_line(d);
+	if (d->y1 == d->y2 || is_inf(d->x1) || is_inf(d->x2))
+		_handle_horizontal_line(d);
+	else if (d->x1 == d->x2 || is_inf(d->y1) || is_inf(d->y2))
+		_handle_vertical_line(d);
 	else {
 		/* We have a line with a slope. See which boundaries it crosses, if any.
 		 * Note that the order of the checks is very important as some of the
@@ -355,6 +359,15 @@ int _check_for_big_numbers(big_number_container * d) {
 	return 2;
 }
 
+/* Determines if a number of infinite; assumes it is *not* nan */
+int is_inf(double v) {
+	return (v * 0.0 != 0.0);
+}
+
+int is_nan(double v) {
+	return v != v;
+}
+
 /* checks for nan and inf. */
 int _too_many_bad_values(big_number_container * d) {
 	/* One nan is one too many */
@@ -363,10 +376,10 @@ int _too_many_bad_values(big_number_container * d) {
 	
 	/* This line should be skipped if two or more of its values are inf */
 	int inf_count = 0;
-	if (d->x1 + 1 == d->x1) inf_count++;
-	if (d->x2 + 1 == d->x2) inf_count++;
-	if (d->y1 + 1 == d->y1) inf_count++;
-	if (d->y2 + 1 == d->y2) inf_count++;
+	if (is_inf(d->x1)) inf_count++;
+	if (is_inf(d->x2)) inf_count++;
+	if (is_inf(d->y1)) inf_count++;
+	if (is_inf(d->y2)) inf_count++;
 	if (inf_count > 1) return 1;
 	
 	return 0;
@@ -401,35 +414,37 @@ void _check_start_within_bounding_box(big_number_container * d) {
 void _handle_horizontal_line(big_number_container * d) {
 	/* Did the line start or end in the box? */
 	if (d->offset == 1) {
-		/* Yes, so replace the other coordinate with the box's bound */
-		d->tmp_ys[1] = d->y1;
-		if (d->x1 < 0 || d->x2 < 0)					d->tmp_xs[1] = 0;
+		/* Yes, so replace the other coordinate with the box's bound. */
+		d->tmp_ys[1] = is_inf(d->x1) ? d->y2 : d->y1;
+		if (d->x1 < 0 || d->x2 < 0)				d->tmp_xs[1] = 0;
 		if (d->x1 > d->width || d->x2 > d->width)	d->tmp_xs[1] = d->width;
+		d->offset++;
 	}
 	else {
 		/* No, so set the coordinates to the box's bound at the same y */
 		d->tmp_xs[0] = 0;
 		d->tmp_xs[1] = d->width;
-		d->tmp_ys[0] = d->tmp_ys[1] = d->y1;
+		d->tmp_ys[0] = d->tmp_ys[1] = is_inf(d->x1) ? d->y2 : d->y1;
+		d->offset += 2;
 	}
-	d->offset++;
 }
 
 void _handle_vertical_line(big_number_container * d) {
 	/* Did the line start or end in the box? */
 	if (d->offset == 1) {
 		/* Yes, so replace the other coordinate with the box's bound */
-		d->tmp_xs[1] = d->x1;
+		d->tmp_xs[1] = is_inf(d->y1) ? d->x2 : d->x1;
 		if (d->y1 < 0			|| d->y2 < 0)			d->tmp_ys[1] = 0;
 		if (d->y1 > d->height	|| d->y2 > d->height)	d->tmp_ys[1] = d->height;
+		d->offset++;
 	}
 	else {
 		/* No, so set the coordinates to the box's bound at the same x */
-		d->tmp_xs[0] = d->tmp_xs[1] = d->x1;
+		d->tmp_xs[0] = d->tmp_xs[1] = is_inf(d->y1) ? d->x2 : d->x1;
 		d->tmp_ys[0] = 0;
 		d->tmp_ys[1] = d->height;
+		d->offset += 2;
 	}
-	d->offset++;
 }
 
 void _check_crosses_left_edge(big_number_container * d, double y0, double slope) {
@@ -471,7 +486,7 @@ void _check_crosses_right_edge(big_number_container * d, double y0, double slope
 
 void _check_crosses_top_edge(big_number_container * d, double y0, double slope) {
 	/* Can't cross the top edge if both y values are less than it */
-	if (d->y1 > d->height || d->y2 > d->height) return;
+	if (d->y1 > d->height && d->y2 > d->height) return;
 	
 	double x_t = (d->height - y0) / slope;
 	/* Note, x == 0 and x == width were handled above, so this checks for
@@ -497,8 +512,8 @@ void _set_returns_preserving_order (big_number_container * d) {
 	/* This only gets called when it's time to change x1, x2, y1, and y2.
 	 * Set them to the values in the temporary array, but take care to
 	 * preserve the original ordering. */
-	if (	d->x1 != d->x2 && (d->x1 < d->x2) == (d->tmp_xs[0] < d->tmp_xs[1])
-		||	d->y1 != d->y1 && (d->y1 < d->y2) == (d->tmp_ys[0] < d->tmp_ys[1]))
+	if (	d->x1 != d->x2 && ((d->x1 < d->x2) == (d->tmp_xs[0] < d->tmp_xs[1]))
+		||	d->y1 != d->y2 && ((d->y1 < d->y2) == (d->tmp_ys[0] < d->tmp_ys[1])))
 	{
 		d->x1 = d->tmp_xs[0];
 		d->x2 = d->tmp_xs[1];
@@ -2313,6 +2328,12 @@ pp_def('prima_polylines',
 			 * to handle infs and nans gracefully by treating the same
 			 * way as I would bad values.
 			 */
+		
+			/* Get the width and height of the widget */
+			Point p = apc_widget_get_size(widget_handle);
+			to_check.height = p.y;
+			to_check.width = p.x;
+			
 			i = 0;
 			NEXT_GOOD_CODE_I: while(i < n_size - 1) {
 				to_plot[0].x = to_check.x1 = $x(n => i);
@@ -2329,7 +2350,7 @@ pp_def('prima_polylines',
 						/* That means "don't plot this segment", which means
 						 * I should plot the other pieces and start over with
 						 * a new sub-segment. */
-						if (j > 1) apc_gp_draw_poly(widget_handle, j-1, to_plot);
+						if (j > 1) apc_gp_draw_poly(widget_handle, j, to_plot);
 						goto NEXT_GOOD_CODE_I;
 					}
 					if (check_result > 1) {
@@ -2388,19 +2409,25 @@ pp_def('prima_polylines',
 			 * to handle infs and nans gracefully by treating the same
 			 * way as I would bad values.
 			 */
+			
+			/* Get the width and height of the widget */
+			Point p = apc_widget_get_size(widget_handle);
+			to_check.height = p.y;
+			to_check.width = p.x;
+			
 			i = 0;
 			NEXT_BAD_CODE_I: while(i < n_size - 1) {
 				to_plot[0].x = to_check.x1 = $x(n => i);
 				to_plot[0].y = to_check.y1 = $y(n => i);
 				i++;
-				if ($ISBAD(x(n => i)) || $ISBAD(y(n => i))) goto NEXT_BAD_CODE_I;
+				if ($ISBAD(x(n => i-1)) || $ISBAD(y(n => i-1))) goto NEXT_BAD_CODE_I;
 				
 				for(j = 1; i < n_size; i++, j++) {
 					to_check.x2 = $x(n => i);
 					to_check.y2 = $y(n => i);
-					
-					if ($ISBAD(x(n => i)) || $ISBAD(y(n => i))
-						|| !(check_result = _check_for_big_numbers(&to_check))) {
+					if ($ISBAD(x(n => i)) || $ISBAD(y(n => i))) check_result = 0;
+					else check_result = _check_for_big_numbers(&to_check);
+					if (check_result == 0) {
 						/* That means "don't plot this segment", which means
 						 * I should plot the other pieces and start over with
 						 * a new sub-segment. */
@@ -2431,7 +2458,7 @@ pp_def('prima_polylines',
 				/* The only way we reach here is if the last segment was fine,
 				 * but was not drawn, so draw it. */
 				apc_gp_draw_poly(widget_handle, j, to_plot);
-			}
+				}
 		%}
 		
 		/* Free the memory when done */
