@@ -23,16 +23,17 @@ sub paint
 	my $p = $_[0];
 	my @size = $p-> size;
 
-	# Draw three sin curves:
+	# Draw three sin curves with 10 nan values
 	my $x = sequence(200, 3) + 100;
 	my $bad_data = pdl(-1)->log;
 	$x(30:40) .= $bad_data;
 	my $y = sin($x / 20) * 100 + 100;
 	my $infty = -pdl(0)->log;
+	# Set the 50th point to infinity:
 	$y(50) .= $infty;
 	$y(:,1) += 50;
 	$y(:,2) += 100;
-	
+	# Set the 51st point to bad:
 	$x(51) .= -100;
 	$x = $x->setbadif($x < 0);
 	
