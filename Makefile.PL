@@ -17,6 +17,18 @@ my %DEFINES=map { my @z = split('=', $_, 2); scalar(@z)?(@z):($_ => 1)} @{$Prima
 $hash{CCFLAGS} .= join( ' ' , map { $Prima::Config::Config{cdefflag}.$_.'='.$DEFINES{$_}} keys %DEFINES);
 $hash{OBJECT}="Prima\$(OBJ_EXT)";
 
+# Find the Prima library for linking:
+if ($^O =~ /MS/) {
+	my $path = $Prima::Config::Config{dlname};
+	if ($path =~ s/\.[^.]+$//) {
+		print "Extensionless Prima library is $path\n";
+	}
+	else {
+		die "Unable to determine the Prima library name\n";
+	}
+	push @{$hash{LIBS}}, "-l$path";
+}
+
 ## Required for Perl 5.14.1 ##
 $hash{CCFLAGS} .= $Config{ccflags};
 
