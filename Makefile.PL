@@ -24,6 +24,9 @@ $hash{PM} = {
 	  'Prima.pm'	=> 'blib/lib/PDL/Drawing/Prima.pm'
 };
 
+# Due to the use of PerlIO, I need at least 5.8:
+$hash{MIN_PERL_VERSION} = '5.8.0';
+
 WriteMakefile(%hash);
 
 sub MY::postamble {
