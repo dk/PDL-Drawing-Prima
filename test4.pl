@@ -2,8 +2,9 @@ use blib;
  use strict;
  use warnings;
  use PDL;
- use PDL::Drawing::Prima;
+ # Windows dynamic loading requires that Prima comes before PDL::Drawing::Prima
  use Prima qw(Application);
+ use PDL::Drawing::Prima;
  
  my $window = Prima::MainWindow->create(
      text    => 'PDL::Graphics::Prima Test',
