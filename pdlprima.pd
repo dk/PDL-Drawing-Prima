@@ -502,8 +502,8 @@ void _check_cross_error (big_number_container * d) {
 	/* Spew a message if there is one or three intersection points, as that
 	 * should never occurr and indicates an internal error. */
 	if (d->offset == 1 || d->offset > 2) {
-		fprintf(PerlIO_stderr(), "Internal error in _check_for_big_numbers:\n");
-		fprintf(PerlIO_stderr(), "  offset should be 0 or 2, but it is %d\n"
+		PerlIO_printf(PerlIO_stderr(), "Internal error in _check_for_big_numbers:\n");
+		PerlIO_printf(PerlIO_stderr(), "  offset should be 0 or 2, but it is %d\n"
 			, d->offset);
 	}
 }
