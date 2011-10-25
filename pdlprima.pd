@@ -18,7 +18,10 @@ use PDL;
 use PDL::Char;
 use Scalar::Util 'blessed';
 use Carp 'croak';
-use Prima;
+
+# working here - this breaks PDL::Graphics::Prima::Simple on Linux and Mac OSX,
+# but forces a requirement of a specific loading order on Windows. :-(
+#use Prima;
 
 # working here - use Exporter and set as 'EXPORT_OK' the functions
 # pdl_of_patterns_for and pdl_of_handles_for. Their usage looks like this:
