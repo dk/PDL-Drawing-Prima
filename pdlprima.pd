@@ -2431,7 +2431,7 @@ pp_def('prima_polylines',
 						/* That means "don't plot this segment", which means
 						 * I should plot the other pieces and start over with
 						 * a new sub-segment. */
-						if (j > 1) apc_gp_draw_poly(widget_handle, j-1, to_plot);
+						if (j > 1) apc_gp_draw_poly(widget_handle, j, to_plot);
 						goto NEXT_BAD_CODE_I;
 					}
 					if (check_result > 1) {
