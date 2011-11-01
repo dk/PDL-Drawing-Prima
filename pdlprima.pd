@@ -2126,46 +2126,80 @@ properties, in their correct order.
 
 @properties = qw(colors backColors clipRects lineEnds lineJoins linePatterns lineWidths rops rop2s translates);
 pp_def('prima_lines',
-	Pars => 'int x1(); int y1(); int x2(); int y2(); ' . generate_pars_args_for(@properties),
+	Pars => 'x1(); y1(); x2(); y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
-	GenericTypes => ['L'],
+	GenericTypes => ['D'],
 	PMFunc => undef,
 	NoPthread => 1,
 	PMCode => generate_PMCode_for('lines', \@properties, qw(x1 y1 x2 y2)),
 	Code => 
-	# I don't need any extra variables for lines, so I'll just add the
-	# auto-generated declaration and initialization code:
-	  initialize_for(@properties)
+	# I'll need a couple of local variables to do my work here:
+	q{
+		Point * to_plot;
+		big_number_container to_check;
+	}
+	# add the auto-generated declaration and initialization code:
+	. initialize_for(@properties)
 	# Continue with the threadloop:
 	. q[
 		threadloop %{
 		]
 		# Now comes the code that calls the various setters for the various
-		# properties:
+		# properties. It would be nice to skip bad values beforehand, but we
+		# need the widget handle before we can check the points:
 		. generate_setter_code_for(@properties)
 		. q[
-			/* Call apricot's lines function */
-			apc_gp_line(widget_handle, $x1(), $y1(), $x2(), $y2());
+			/* Assemble the big number checker */
+			Point p = apc_widget_get_size(widget_handle);
+			to_check.height = p.y;
+			to_check.width = p.x;
+			to_check.x1 = $x1();
+			to_check.x2 = $x2();
+			to_check.y1 = $y1();
+			to_check.y2 = $y2();
+			
+			/* Call apricot's lines function if the line should be drawn */
+			if (_check_for_big_numbers(&to_check) > 0) {
+				apc_gp_line(widget_handle, to_check.x1, to_check.y1
+					, to_check.x2, to_check.y2);
+			}
 		%}
 	],
 	BadCode => 
-	# I don't need any extra variables for lines, so I'll just add the
-	# auto-generated declaration and initialization code:
-	  initialize_for(@properties)
+	# I'll need a couple of local variables to do my work here:
+	q{
+		Point * to_plot;
+		big_number_container to_check;
+	}
+	# add the auto-generated declaration and initialization code:
+	. initialize_for(@properties)
 	# Continue with the threadloop:
 	. q[
 		threadloop %{
 			/* Skip any points that are bad */
-			if ( $ISBAD(x1()) || $ISBAD(y1()) || $ISBAD(x2()) || $ISBAD(y2()) ) {
+			if ( $ISBAD(x1()) || $ISBAD(y1()) || $ISBAD(x2()) || $ISBAD(y2())) {
 				continue;
 			}
 		]
 		# Now comes the code that calls the various setters for the various
-		# properties:
+		# properties. It would be nice to skip bad values beforehand, but we
+		# need the widget handle before we can check the points:
 		. generate_setter_code_for(@properties)
 		. q[
-			/* Call apricot's lines function */
-			apc_gp_line(widget_handle, $x1(), $y1(), $x2(), $y2());
+			/* Assemble the big number checker */
+			Point p = apc_widget_get_size(widget_handle);
+			to_check.height = p.y;
+			to_check.width = p.x;
+			to_check.x1 = $x1();
+			to_check.x2 = $x2();
+			to_check.y1 = $y1();
+			to_check.y2 = $y2();
+			
+			/* Call apricot's lines function if the line should be drawn */
+			if (_check_for_big_numbers(&to_check) > 0) {
+				apc_gp_line(widget_handle, to_check.x1, to_check.y1
+					, to_check.x2, to_check.y2);
+			}
 		%}
 	],
 	HandleBad => 1,
@@ -3151,7 +3185,7 @@ pp_def('minmaxforpair',
 			%}
 			types (FD) %{
 				if ($x() == $x() && $y() == $y()				/* nan check */
-						&& $x()+1 != $x() && $y()+1 != $y()	/* inf check */
+						&& $x()*0.0 == 0.0 && $y()*0.0 == 0.0	/* inf check */
 				) {
 					if ($x() < $min_x()) $min_x() = $x();
 					if ($max_x() < $x()) $max_x() = $x();
@@ -3175,8 +3209,8 @@ pp_def('minmaxforpair',
 		loop(n) %{
 			// Only check (and possibly change) if both x and y are good:
 			if ($ISGOOD(x()) && $ISGOOD(y())				/* bad check */
-					&& $x() == $x() && $y() == $y()		/* nan check */
-					&& $x()+1 != $x() && $y()+1 != $y()	/* inf check */
+					&& $x() == $x() && $y() == $y()			/* nan check */
+					&& $x()*0.0 == 0.0 && $y()*0.0 == 0.0	/* inf check */
 				) {
 				// It could be that this is the first good value. If so, just
 				// assign the value. Note that either all min/max value are bad,
@@ -3284,7 +3318,7 @@ pp_def ('collate_min_max_wrt_many',
 						min_value = \$extra${_}();
 						if (\$ISBAD(extra${_}())			/* bad check */
 							|| min_value != min_value		/* nan check */
-							|| min_value + 1 == min_value)	/* inf check */
+							|| min_value * 0.0 != 0.0)		/* inf check */
 							continue;
 						"} reverse (0..$max_piddle_index))
 					. q[
@@ -3297,8 +3331,8 @@ pp_def ('collate_min_max_wrt_many',
 							|| $ISBAD(max_check())
 							|| min_value != min_value		/* nan check */
 							|| max_value != max_value
-							|| min_value + 1 == min_value	/* inf check */
-							|| max_value + 1 == max_value)
+							|| min_value * 0.0 != 0.0	/* inf check */
+							|| max_value * 0.0 != 0.0)
 							continue;
 				}
 				
