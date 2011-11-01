@@ -509,6 +509,8 @@ void _check_cross_error (big_number_container * d) {
 		PerlIO_printf(PerlIO_stderr(), "Internal error in _check_for_big_numbers:\n");
 		PerlIO_printf(PerlIO_stderr(), "  offset should be 0 or 2, but it is %d\n"
 			, d->offset);
+		PerlIO_printf(PerlIO_stderr(), "  x1=%f, y1=%f, x2=%f, y2=%f\n"
+			, d->x1, d->y1, d->x2, d->y2);
 	}
 }
 
@@ -1175,6 +1177,8 @@ with the on-machine library.
 
 =cut
 
+# working here - check this and all following for edge handling
+
 ##############
 # prima_arcs #
 ##############
@@ -1282,9 +1286,9 @@ properties, in their correct order.
 
 @properties = qw(colors backColors clipRects fillPatterns rops rop2s translates);
 pp_def('prima_bars',
-	Pars => 'int x1(); int y1(); int x2(); int y2(); ' . generate_pars_args_for(@properties),
+	Pars => 'x1(); y1(); x2(); y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
-	GenericTypes => ['L'],
+	GenericTypes => ['D'],
 	PMFunc => undef,
 	NoPthread => 1,
 	PMCode => generate_PMCode_for('bars', \@properties, qw(x1 y1 x2 y2)),
