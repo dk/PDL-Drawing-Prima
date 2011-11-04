@@ -1021,8 +1021,9 @@ properties, I need a function to actually process the hash.
 This is a function that I call in all of my PMCode sections. It takes an
 anonymous list of names and an anonymous hash. If the hash has a key for
 one of the names, it includes that in the return list. If it doesn't, it
-returns the default value of a 0-dim piddle with value 0. If one of the
-hash keys is not in the list of names, it croaks.
+returns the default value of a 0-dim piddle with a value corresponding to
+the widget's handle. If one of the hash keys is not in the list of names,
+it croaks.
 
 Put a little differently, this function takes an anonymous hash, makes
 sure there are no extraneous arguments, extracts the desired arguments
@@ -1032,6 +1033,8 @@ order.
 =end details
 
 =cut
+
+# working here - consider allowing singular as well as plural options.
 
 pp_addpm <<'DefaultArgumentHandling';
 
@@ -1142,7 +1145,7 @@ sub generate_PMCode_for {
 	}
 	$to_return .= "
 	# Check for an even number of remaining arguments (key-value pairs):
-	croak('pdl_$func_name expects optional parameters ans key => value pairs')
+	croak('pdl_$func_name expects optional parameters as key => value pairs')
 		unless \@_ % 2 == 0;
 	
 	my \%args = \@_;
@@ -2730,9 +2733,9 @@ properties, in their correct order.
 # Additional Functions that do Not Need the Machinery #
 #######################################################
 
-#################
-# colors_to_rgb #
-#################
+################
+# color_to_rgb #
+################
 # Based on value2rgb from Prima's ColorDialog.pm
 
 =color_to_rgb
@@ -2770,7 +2773,7 @@ Converts a Prima color value to RGB representation
 If the input piddle has dimension (m, n, ...), the output piddle has
 dimensions (3, m, n, ...). The first element represents the red value, the
 second the green value, and the third the blue value. The resulting piddle is
-suitable for use in C<rgb_to_colors> or C<rgb_to_hsv>.
+suitable for use in C<rgb_to_color> or C<rgb_to_hsv>.
 
 The code for this routine is based on C<value2rgb> from L<Prima::colorDialog>.
 
@@ -2790,9 +2793,9 @@ value.
 BADDOC
 );
 
-#################
-# rgb_to_colors #
-#################
+################
+# rgb_to_color #
+################
 # Based on rgb2value from Prima's ColorDialog.pm
 
 =head2 rgb_to_color
