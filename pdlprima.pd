@@ -19,10 +19,6 @@ use PDL::Char;
 use Scalar::Util 'blessed';
 use Carp 'croak';
 
-# working here - this breaks PDL::Graphics::Prima::Simple on Linux and Mac OSX,
-# but forces a requirement of a specific loading order on Windows. :-(
-#use Prima;
-
 # working here - use Exporter and set as 'EXPORT_OK' the functions
 # pdl_of_patterns_for and pdl_of_handles_for. Their usage looks like this:
 #  my $patterns = pdl_of_patterns_for($pat1, $pat2, ...);
@@ -3712,8 +3708,20 @@ pp_done();
 # pp_def function call. When you supply an empty string, no documentation gets
 # generated. That lets me to add my own pod in the PMCode section.
 
+# However, I'm also going to add a 'use Prima' at the top for Windows machines,
+# so I'm going to keep this section, even if I reduce the pod-parsing portion. 
+
 open my $in, '<', 'Prima.pm';
 open my $out, '>', 'new_Prima.pm';
+
+# Add 'use Prima' to the top if this is a Windows machine:
+if ($^O =~ /MS/) {
+	print $out <<'WINDOWS_ONLY';
+# This is only included on Windows machines:
+use Prima;
+
+WINDOWS_ONLY
+}
 
 my $is_discarding = 0;
 my $found_functions = 0;
