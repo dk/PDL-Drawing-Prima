@@ -2759,19 +2759,11 @@ ModuleMaterial
 # prima_symbols #
 #################
 
-@properties = qw(colors backColors clipRects fillPatterns lineEnds
-				linePatterns lineWidths rops rop2s translates);
-pp_def('prima_symbols',
-	Pars => 'x(); y(); byte N_points(); orientation(); byte filled(); int size(); byte skip(); '
-				. generate_pars_args_for(@properties),
-	OtherPars => $default_other_pars,
-	GenericTypes => ['D'],
-	PMFunc => undef,
-	NoPthread => 1,
-	PMCode => generate_PMCode_for('symbols', \@properties, qw(x y N_points orientation filled size skip)),
-	Code => 
+# The code and badcode are nearly identical, so I'll write it once here and
+# do the handful of manipulations below.
+
 	# I'll need to allocate the memory for each Symbol drawn:
-	q{
+my $code = 	q{
 		Point * to_plot;
 		int i, j, N_sides, N_steps, reduced_skip;
 		double angle;
@@ -2788,12 +2780,16 @@ pp_def('prima_symbols',
 		# properties:
 		. generate_setter_code_for(@properties)
 		. q[
-			/* Skip bad values */
-			if(is_nan($x()) || is_nan($y()) || is_inf($x()) || is_inf($y()))
-				continue;
+			/* Figure out the reduced_skip */
+			reduced_skip = $skip() % $N_points();
 			
-			/* Handle the circle case up-front */
-			if ($N_points() == 0 || $N_points() == 1) {
+			/* Skip bad values */
+			if(is_nan($x()) || is_nan($y()) || is_inf($x()) || is_inf($y())
+				BADCHECKS) {
+				/* do nothing */
+			}
+			else if ($N_points() == 0 || $N_points() == 1) {
+				/* Handle the circle case up-front */
 				if ($filled() == 0) {
 					apc_gp_ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
 				}
@@ -2801,14 +2797,9 @@ pp_def('prima_symbols',
 					apc_gp_fill_ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
 				}
 			}
-			else {
-			
-			/* Figure out the reduced_skip */
-			reduced_skip = $skip() % $N_points();
-			
-			/* Handle the zero-skip case next, which draws lines from the
-			 * center to each point */
-			if (reduced_skip == 0
+			else if (reduced_skip == 0
+				/* Handle the zero-skip case next, which draws lines from the
+				 * center to each point */
 					|| $N_points() % 2 == 0 && reduced_skip == $N_points() / 2) {
 				angle = TWOPI * $orientation() / 360.0;
 				N_sides = $N_points();
@@ -2822,47 +2813,68 @@ pp_def('prima_symbols',
 				}
 			}
 			else {
-			
-			/* Figure out the number of sides we'll be plotting at any given
-			 * moment */
-			if (reduced_skip > 1 && $N_points() % reduced_skip == 0) {
-				N_sides = $N_points() / reduced_skip + 1;
-				N_steps = reduced_skip;
-			}
-			else {
-				N_sides = $N_points() + 1;
+				/* Fix reduced_skip so it's always less than half N_points */
+			//	if (reduced_skip > $N_points() / 2)
+			//		reduced_skip = $N_points() - reduced_skip;
+				
+				/* Look for the least common divisor of reduced_skip and N_points */
 				N_steps = 1;
-			}
-			
-			/* Allocate the memory needed for the Symbol */
-			Newx(to_plot, N_sides, Point);
-			
-			for (j = 0; j < N_steps; j++) {
-				angle = TWOPI * ($orientation() / 360.0 + (double)j / $N_points());
-				/* Calculate the points for the Symbol */
-				for (i = 0; i < N_sides; ++i) {
-					to_plot[i].x = $x() + $size() * cos(angle);
-					to_plot[i].y = $y() + $size() * sin(angle);
-					angle += TWOPI/(N_sides - 1.0);
+				for (i = 2; i <= reduced_skip; ++i)
+					if (reduced_skip % i == 0 && $N_points() % i == 0)
+						N_steps = i;
+				/* Figure out the number of sides we'll be plotting at any
+				 * given moment */
+				N_sides = $N_points() / N_steps + 1;
+				
+				/* Allocate the memory needed for the Symbol */
+				Newx(to_plot, N_sides, Point);
+				
+				for (j = 0; j < N_steps; j++) {
+					angle = TWOPI * ($orientation() / 360.0 + (double)j / $N_points());
+					/* Calculate the points for the Symbol */
+					for (i = 0; i < N_sides; ++i) {
+						to_plot[i].x = $x() + $size() * cos(angle);
+						to_plot[i].y = $y() + $size() * sin(angle);
+						angle += TWOPI/$N_points() * reduced_skip;
+					}
+					
+					if ($filled() == 0) {
+					/* Draw a non-filled polygon */
+						apc_gp_draw_poly(widget_handle, N_sides, to_plot);
+					}
+					else {
+						/* Draw a filled-in polygon */
+						apc_gp_fill_poly(widget_handle, N_sides, to_plot);
+					}
 				}
 				
-				if ($filled() == 0) {
-					/* Draw a non-filled polygon */
-					apc_gp_draw_poly(widget_handle, N_sides, to_plot);
-				}
-				else {
-					/* Draw a filled-in polygon */
-					apc_gp_fill_poly(widget_handle, N_sides, to_plot);
-				}
-			}
-			
-			/* Free the allocated memory for the Symbol */
-			Safefree(to_plot);
-			
-			}
+				/* Free the allocated memory for the Symbol */
+				Safefree(to_plot);
 			}
 		%}
-	],
+	];
+
+my $good_code = $code;
+$good_code =~ s/BADCHECKS//;
+my $bad_code = $code;
+my $bad_checks = '|| $ISBAD(x()) || $ISBAD(y()) || $ISBAD(N_points())
+					|| $ISBAD(orientation()) || $ISBAD(filled())
+					|| $ISBAD(size()) || $ISBAD(skip())';
+$bad_code =~ s/BADCHECKS/$bad_checks/;
+
+@properties = qw(colors backColors clipRects fillPatterns lineEnds
+				linePatterns lineWidths rops rop2s translates);
+pp_def('prima_symbols',
+	Pars => 'x(); y(); byte N_points(); orientation(); byte filled(); int size(); byte skip(); '
+				. generate_pars_args_for(@properties),
+	OtherPars => $default_other_pars,
+	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
+	PMCode => generate_PMCode_for('symbols', \@properties, qw(x y N_points orientation filled size skip)),
+	Code => $good_code,
+	HandleBad => 1,
+	BadCode => $bad_code,
 	Doc => q{
 
 =head2 pdl_symbols
@@ -3010,6 +3022,11 @@ line to determine the line width.
  
  # Draw them:
  $canvas->pdl_symbols($x, $y, $N_points, 0, $filled, 10, $skip
+
+=for bad
+
+Bad values are handled by C<pdl_symbols>. If any of the values you pass in
+are bad, the symbol is not drawn at that x/y coordinate.
 
 =cut
 
