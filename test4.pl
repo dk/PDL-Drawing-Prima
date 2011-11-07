@@ -15,21 +15,28 @@ use blib;
          $canvas->clear;
          
          ### Example code goes here ###
+ use PDL::NiceSlice;
  
- $canvas->fillpoly([0, 0, 49, 200, 943, 123, 92, 3]);
+ # Draw 50 shapes at random points:
+ my ($width, $height) = $canvas->size;
+ my $x = random(50) * $width;
+ my $y = $x->random * $height;
  
-# my ($x_max, $y_max) = $canvas->size;
-# 
-# my $xs = zeroes($N_arcs)->random * $x_max;
-# my $ys = $xs->random * $y_max;
-# my $dxs = $xs->random * $x_max / 4;
-# my $dys = $xs->random * $y_max / 4;
-# my $th_starts = $xs->random * 360;
-# my $th_stops = $xs->random * 360;
-# 
-# # Now that we've generated the data, call the command:
-# $canvas->pdl_arcs($xs, $ys, $dxs
-#                , $dys, $th_starts, $th_stops);
+ # Generate some fun random shapes and sizes:
+ my $N_points = 1 + 9 * $x->random;
+ my $orientation = $x->random * 360;
+ my $filled = ($x->random < 0.5);
+ my $size = 5 + 10 * $x->random;
+ my $skip = ($x->random * $N_points)->byte;
+ 
+ # Make a rainbow of colors:
+ my $deg = $x->xlinvals(0, 360);
+ my $hsv = ones(3, $x->nelem);
+ $hsv(0, :) .= $deg->transpose;
+ my $colors = $hsv->hsv_to_rgb->rgb_to_color;
+ 
+ # Draw them:
+ $canvas->pdl_ngons($x, $y, $N_points, $orientation, 0, $size, 2);
          
      },
      backColor => cl::White,
