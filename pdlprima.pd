@@ -789,7 +789,6 @@ sub create_boolean_setters_for {
 	# This is the string I will build up for my return value:
 	my $to_return = "
 		/* The last of the declarations */
-		SV* key;
 		HV* arg_hash_hv;
 		int ";
 	# Create the variable list (is_setting_colors, is_setting_lineWidths...):
@@ -798,12 +797,11 @@ sub create_boolean_setters_for {
 	# Set the variables:
 	$to_return .= "
 		/* Begin initializing the values */
-		key = sv_newmortal();
 		arg_hash_hv = (HV*)SvRV(\$COMP(arg_ref_sv));
 ";
 	foreach(@_) {
-		$to_return .= "\t\tsv_setpv(key, \"$_\");\n"
-					. "\t\tis_setting_$_ = hv_exists_ent(arg_hash_hv, key, 0);\n";
+		$to_return .= "\t\tis_setting_$_ = hv_exists(arg_hash_hv, \"$_\", "
+					. length($_) . ");\n";
 	}
 	return $to_return;
 }
