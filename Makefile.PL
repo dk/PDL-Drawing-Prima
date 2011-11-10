@@ -21,15 +21,14 @@ $hash{CCFLAGS} .= join( ' ' , map { $Prima::Config::Config{cdefflag}.$_.'='.$DEF
 $hash{OBJECT}="Prima\$(OBJ_EXT)";
 
 # Find the Prima library for linking:
-if ($^O =~ /MS/) {
+if ($^O =~ /MS/ or $^O eq 'cygwin') {
 	my $path = $Prima::Config::Config{dlname};
-	if ($path =~ s/\.[^.]+$//) {
-		print "Extensionless Prima library is $path\n";
-	}
-	else {
-		die "Unable to determine the Prima library name\n";
-	}
-	push @{$hash{LIBS}}, "-l$path";
+	# Extract the path. This assumes that the path seperator is a single
+	# character, but otherwise is not system-specific. Since it only applies
+	# to MS and Cygwin, I think it'll be fine:
+	die "Unable to determine the Prima library name\n"
+		unless $path =~ s/.Prima\.[^.]+$//;
+	push @{$hash{LIBS}}, "-L$path -lPrima";
 }
 
 ## Required for Perl 5.14.1 ##
