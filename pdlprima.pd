@@ -4045,7 +4045,7 @@ open my $in, '<', 'Prima.pm';
 open my $out, '>', 'new_Prima.pm';
 
 # Add 'use Prima' to the top if this is a Windows machine:
-if ($^O =~ /MS/) {
+if ($^O =~ /MS/ or $^O eq 'cygwin') {
 	print $out <<'WINDOWS_ONLY';
 # This is only included on Windows machines:
 use Prima;
