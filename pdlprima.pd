@@ -264,7 +264,13 @@ and http://www.physics.emory.edu/~weeks/graphics/howtops1.html
 
 =cut
 
-pp_addhdr('# line ' . (__LINE__ + 2) . ' "pdlprima.pd"'. <<'HEADER' );
+sub add_line_numbering ($) {
+	my $string = shift;
+	my (undef, $filename, $line) = caller;
+	return "\n# line " . ($line + 1) . " \"$filename\"\n" . $string;
+}
+
+pp_addhdr(add_line_numbering <<'HEADER'); 
 
 /* apricot is the (strangely named) header file that contains all of the
  * cross-platform functions. */
@@ -272,6 +278,83 @@ pp_addhdr('# line ' . (__LINE__ + 2) . ' "pdlprima.pd"'. <<'HEADER' );
 #undef WORD
 #include <apricot.h>
 #include <math.h>
+
+/* working here - is this cross-platform? */
+#define my CDrawable(widget_handle)
+#include <generic/Drawable.h>
+
+#define DECLARE_POINT_DATA													\
+	Point * points_to_plot;													\
+	AV * array_to_plot;														\
+	SV ** array_elem_p
+
+#define INIT_POINT_DATA														\
+	points_to_plot = 0;														\
+	array_to_plot = 0;														\
+	array_elem_p = 0
+
+#define ENSURE_POINT_STORAGE(function, n_points)							\
+	if (my-> function == Drawable_ ## function) {							\
+		/* This is the direct raster drawing, so make sure we have */		\
+		/* memory allocated for points_to_plot 						*/		\
+		if (points_to_plot == 0) Newx(points_to_plot, n_points, Point);		\
+	}																		\
+	else {																	\
+		/* This is the Perl-level drawing, so make sure we have an AV */	\
+		/* and then ensure it is long enough */								\
+		if (array_to_plot == 0) array_to_plot = newAV();					\
+		av_fill(array_to_plot, (n_points) * 2);								\
+	}
+
+#define FREE_POINT_STORAGE													\
+	do {																	\
+		if (points_to_plot != 0) Safefree(points_to_plot);					\
+		points_to_plot = 0;													\
+		if (array_to_plot != 0) av_undef(array_to_plot);					\
+		array_to_plot = 0;													\
+	} while (0)
+
+#define ADD_POINT(function, index, xval, yval)								\
+	do {																	\
+		if (my-> function == Drawable_ ## function) {						\
+			points_to_plot[index].x = xval;									\
+			points_to_plot[index].y = yval;									\
+		}																	\
+		else {																\
+			/* Add the x value */											\
+			array_elem_p = av_fetch(array_to_plot, 2*(index), 1);			\
+			if (array_elem_p == 0) {										\
+				FREE_POINT_STORAGE;											\
+				barf("Internal error: could not access Perl array element");\
+			}																\
+			sv_setnv(*array_elem_p, xval);									\
+																			\
+			/* Add the y value */											\
+			array_elem_p = av_fetch(array_to_plot, 2*(index)+1, 1);			\
+			if (array_elem_p == 0) {										\
+				FREE_POINT_STORAGE;											\
+				barf("Internal error: could not access Perl array element");\
+			}																\
+			sv_setnv(*array_elem_p, yval);									\
+		}																	\
+	} while(0)
+
+#define DRAW_POINTS(function, apricot_function, n_to_plot)					\
+	do {																	\
+		if (my-> function == Drawable_ ## function) {						\
+			/* Call apricot's function */									\
+		/*	printf("Drawing %s\n", #function);	*/							\
+			apricot_function (widget_handle, n_to_plot, points_to_plot);	\
+		}																	\
+		else {																\
+			/* Trim the array, in case any values were nan and therefore */	\
+			/* skipped */													\
+			av_fill(array_to_plot, 2*n_to_plot);							\
+			/* working here - should I just use newRV? */					\
+			my-> function (widget_handle, newRV_noinc((SV*)array_to_plot));	\
+		}																	\
+	} while(0)
+
 
 /* This is based on Prima's maximum coordinate size, which is 16383. I have
  * reduced it in order to accomodate certain coordinate transforms that Prima
@@ -744,9 +827,8 @@ So, for each of the graphics properties that the user can supply for a given
 function, I will want to have code in the PP Code section that looks
 something like this:
 
- SV* arg_hash_HV = SvRV(arg_rev_sv);
  int is_setting_rops;
- is_setting_rop = hv_exists_ent(arg_hash_hv, sv_2mortal(newSVpv("rops", 0)), 0);
+ is_setting_rop = hv_exists(arg_hash_hv, "rops", 4);
 
 This code checks if the key "rops" exists in the arg_hash_hv hash (which
 must be passed in to the PP function via OtherPars). The
@@ -835,9 +917,9 @@ sub initialize_for {
 
 my $default_other_pars = 'SV * arg_ref_sv';
 
-#################################
-# Calling the apricot.h setters #
-#################################
+#######################
+# Calling the setters #
+#######################
 
 =begin details
 
@@ -862,7 +944,7 @@ apricot function for this function is itself called. For example:
          ] . generate_setter_code_for(@func_pars)
          . q[
          /* Call the apricot function */
-         apc_gp_set_func(args);
+         my->set_func(args);
      %}
  ]
 
@@ -871,10 +953,10 @@ apricot function for this function is itself called. For example:
 =cut
 
 my %set_code_for = (
-	colors => q{
+	colors => add_line_numbering q{
 				/* cast the integer as a Colors type (which itself is a
 				 * 32-bit int, so maybe this is unnecessary */
-				apc_gp_set_color(widget_handle, (Color)$colors());
+				my->set_color(widget_handle, (Color)$colors());
 },
 );
 
@@ -882,8 +964,8 @@ sub generate_single_setter_code_for {
 	my $property = shift;
 	# Make the singular name from the plural:
 	(my $singular = $property) =~ s/s$//;
-	# apricot uses underscores and all lowercase instead of CamelCase:
-	(my $apricot  = $singular) =~ s/([A-Z])/_\l$1/g;
+#	# apricot uses underscores and all lowercase instead of CamelCase:
+#	(my $apricot  = $singular) =~ s/([A-Z])/_\l$1/g;
 	# Build the return string:
 	my $to_return = "\t\t\tif (is_setting_$property) {\n";
 	if (exists $set_code_for{$property}) {
@@ -892,7 +974,7 @@ sub generate_single_setter_code_for {
 	}
 	else {
 		# Most other properties are direct sets:
-		$to_return .= "\t\t\t\tapc_gp_set_$apricot(widget_handle, \$$property());\n";
+		$to_return .= "\t\t\t\tmy->set_$singular(widget_handle, \$$property());\n";
 	}
 	
 	$to_return .= "\t\t\t}";
@@ -912,6 +994,37 @@ sub generate_setter_code_for {
 			/* END AUTOGENERATED SETTER CHECKS */\n";
 }
 
+#############################
+# Per-Property Cleanup Code #
+#############################
+
+=begin details
+
+At least one of the properties allocates memory that must be freed when we're
+done.
+
+=end details
+
+=cut
+
+# colors does not need any special cleanup code:
+
+my %cleanup_code_for = ();
+
+sub generate_cleanup_code_for {
+	my $to_return = '
+		/* BEGIN AUTOGENERATED CLEANUP CODE */
+		
+';
+	foreach (@_) {
+		$to_return .= $cleanup_code_for{$_} if exists $cleanup_code_for{$_};
+	}
+	return $to_return . '
+		
+		/* END AUTOGENERATED CLEANUP CODE */
+';
+}
+
 ##################################################
 # Building machinery for the different properies #
 ##################################################
@@ -927,20 +1040,20 @@ data structures for each of the properties.
 
 # Background color:
 $pars_args_for{backColors} = 'int backColors()';
-$set_code_for{backColors} = q{
+$set_code_for{backColors} = add_line_numbering q{
 				/* cast the integer as a Colors type (actually an int) */
-				apc_gp_set_back_color(widget_handle, (Color)$backColors());
+				my->set_backColor(widget_handle, (Color)$backColors());
 };
 
 # Clipping rectangle:
 $pars_args_for{clipRects} = 'int clipLeft(); int clipBottom(); int clipRight(); int clipTop()';
 $init_args_for{clipRects} = 'Rect clip_rect';
-$set_code_for{clipRects} = q{
+$set_code_for{clipRects} = add_line_numbering q{
 				clip_rect.left = $clipLeft();
 				clip_rect.bottom = $clipBottom();
 				clip_rect.right = $clipRight();
 				clip_rect.top = $clipTop();
-				apc_gp_set_clip_rect(widget_handle, clip_rect);
+				my->set_clipRect(widget_handle, clip_rect);
 };
 
 # These do not need any special args, and the default generated code will
@@ -954,30 +1067,63 @@ $pars_args_for{rop2s} = 'int rop2s()';
 # line patterns. This code has to cast the byte piddle into a char and
 # send that and the length to the line_pattern function.
 $pars_args_for{linePatterns} = 'byte linePatterns(patlen)';
-$init_args_for{linePatterns} = 'unsigned char * pattern; int pattern_length';
-$set_code_for{linePatterns} = q{
-				pattern = (unsigned char *)$P(linePatterns);
-				pattern_length = strlen(pattern);
-				apc_gp_set_line_pattern(widget_handle, pattern, pattern_length);
+$init_args_for{linePatterns} = 'SV * pattern';
+$set_code_for{linePatterns} = add_line_numbering q{
+				/* Copy the pattern to a Perl scalar */
+				pattern = newSVpv((unsigned char *)$P(linePatterns), 0);
+				my->set_linePattern(widget_handle, pattern);
 };
 
 # translation; the apricot function for translate uses a different name
 # and takes two arguments instead of one:
 $pars_args_for{translates} = 'int trans_x(); int trans_y()';
-$set_code_for{translates} = q{
-				/* invoke the apricot function with both x and y */
-				apc_gp_set_transform(widget_handle, $trans_x(), $trans_y());
+$init_args_for{translates} = 'Point tr';
+$set_code_for{translates} = add_line_numbering q{
+				/* Set tr and then use it to set the translate */
+				tr.x = $trans_x();
+				tr.y = $trans_y();
+				my->set_translate(widget_handle, tr);
 };
 
 # Fill winding works nicely without any alteration:
 $pars_args_for{fillWindings} = 'int fillWindings()';
 
-# Fill pattern may work nicely without any alteration, but I am
-# going to be explicit and cast the fillPattern piddle into a U8 array:
+# Fill pattern requires that we pack the pattern into an 8x8 Perl array.
+# Kinda stupid, but oh well, what can we do?
 $pars_args_for{fillPatterns} = 'byte fillPatterns(oct=8)';
-$set_code_for{fillPatterns} = q{
-			/* Casts the pattern as a U8 pointer and continues */
-			apc_gp_set_fill_pattern(widget_handle, (U8*)$P(fillPatterns));
+$init_args_for{fillPatterns} = add_line_numbering q{
+			AV * fill_av = newAV();
+			SV * fill_ref_sv = newRV_noinc((SV*)fill_av);
+			AV * tmp_fill_av;
+			SV * tmp_fill_sv;
+			/* Ensure there are eight rows */
+			av_fill(fill_av, 7);
+			
+			/* Ensure that each row has eight columns */
+			int av_i, av_j;
+			for (av_i = 0; av_i < 8; av_i++) {
+				tmp_fill_av = newAV();
+				av_fill(tmp_fill_av, 7);
+				av_store(fill_av, av_i, (SV*)tmp_fill_av);
+			}
+};
+$set_code_for{fillPatterns} = add_line_numbering q{
+			/* Copy the fill pattern into the array */
+			for (av_i = 0; av_i < 8; av_i++) {
+				tmp_fill_av = (AV*)*(av_fetch(fill_av, av_i, 1));
+				for (av_j = 0; av_j < 8; av_j++) {
+					tmp_fill_sv = *(av_fetch(tmp_fill_av, av_j, 1));
+					sv_setiv(tmp_fill_sv, (((1<<av_j) & $fillPatterns(oct => av_j)) >> av_j));
+				}
+			}
+			
+			/* Set the fill pattern */
+			my->set_fillPattern(widget_handle, fill_ref_sv);
+};
+$cleanup_code_for{fillPatterns} = add_line_numbering q{
+		/* I will never return these, so I will unconditionally free their memory */
+		av_undef(fill_av);
+		sv_2mortal(fill_ref_sv);
 };
 
 # Spline precision works well with the default setup:
@@ -1229,12 +1375,13 @@ pp_def('prima_arcs',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's arc function */
-			apc_gp_arc(widget_handle, $x(), $y(), $x_diameter(),
+			my->arc(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
 =head2 pdl_arcs
@@ -1329,11 +1476,12 @@ pp_def('prima_bars',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's bar function */
-			apc_gp_bar(widget_handle, $x1(), $y1(), $x2(), $y2());
+			my->bar(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
 =head2 pdl_bars
@@ -1409,12 +1557,13 @@ pp_def('prima_chords',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's chord function */
-			apc_gp_chord(widget_handle, $x(), $y(), $x_diameter(),
+			my->chord(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
 =head2 pdl_chords
@@ -1513,11 +1662,12 @@ pp_def('prima_clears',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's clear function */
-			apc_gp_clear(widget_handle, $x1(), $y1(), $x2(), $y2());
+			my->clear(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
 =head2 pdl_clears
@@ -1598,12 +1748,14 @@ pp_def('prima_ellipses',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's ellipse function */
-			apc_gp_ellipse(widget_handle, $x(), $y(), $x_diameter(),
+			my->ellipse(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	Doc => q{
 
 =head2 pdl_ellipses
@@ -1671,12 +1823,14 @@ pp_def('prima_fill_chords',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's fill_chord function */
-			apc_gp_fill_chord(widget_handle, $x(), $y(), $x_diameter(),
+			my->fill_chord(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	Doc => q{
 
 =head2 pdl_fill_chords
@@ -1743,11 +1897,13 @@ pp_def('prima_fill_ellipses',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's fill_ellipse function */
-			apc_gp_fill_ellipse(widget_handle, $x(), $y(), $x_diameter(), $y_diameter());
+			my->fill_ellipse(widget_handle, $x(), $y(), $x_diameter(), $y_diameter());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	Doc => q{
 
 =head2 pdl_fill_ellipses
@@ -1794,34 +1950,27 @@ properties, in their correct order.
 ####################
 # prima_fillpolys #
 ####################
+
 @properties = qw(colors backColors clipRects fillPatterns fillWindings rops rop2s translates);
-pp_def('prima_fillpolys',
-	Pars => 'x(n); y(n); ' . generate_pars_args_for(@properties),
-	OtherPars => $default_other_pars,
-	GenericTypes => ['D'],
-	PMFunc => undef,
-	NoPthread => 1,
-	PMCode => generate_PMCode_for('fillpolys', \@properties, qw(x y)),
-	Code => 
-	# Begin by declaring the non-autogenerated the variables I will need
+my $code = 	# Begin by declaring the non-autogenerated the variables I will need
 	q{
-		Point * to_plot;
+		DECLARE_POINT_DATA;
 		int n_size, i, n_to_plot;
 		double xval, yval;
 	}
 	# Add the auto-generated declaration and initialization code:
 	. initialize_for(@properties)
 	# Continue with my initialization code and the threadloop:
-	. q[
+	. add_line_numbering q[
 		/* Allocate an array of Points outside of the threadloop */
 		n_size = $SIZE(n);
-		Newx(to_plot, n_size, Point);
+		INIT_POINT_DATA;
 		
 		/* All set. Start the threadloop with the setters. */
 		threadloop %{
 		]
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Put the x-y data into the to_plot array. I am attempting
 			 * to handle infs gracefully, and I am simply skipping over
 			 * nan values, treating them just as I would bad values.
@@ -1829,25 +1978,39 @@ pp_def('prima_fillpolys',
 			 * I simply skip over them.
 			 */
 			n_to_plot = 0;
-			for(i = 0; i < n_size; i++) {
+			
+			/* Note that I have two seperate ways of doing the drawing. The
+			 * first assumes graphics operations that can use the direct gp
+			 * raster drawing, for which I assemble the list of points. The
+			 * second works with the general Prima method and packs the values
+			 * into a Perl array. Which I use depends upon the Drawable's
+			 * drawing function. */
+			ENSURE_POINT_STORAGE (fillpoly, n_size);
+			
+			i = -1;
+			while(1) {
+				NEXT_I: i++;
+				if (i >= n_size) break;
+				
 				xval = $x(n => i);
 				yval = $y(n => i);
 
-				/* Move to the next value if we encounter nan */
-				if (xval != xval || yval != yval) {		/* nan check */
-					continue;
+				/* Move to the next value if we encounter nan or BAD */
+				if (xval != xval || yval != yval ORBADCHECKS) {
+					goto NEXT_I;
 				}
 
-				/* This is a hack, but I'm leaving it like this for now. :-( */
+				/* This is a hack, but I'm leaving it like this for now because
+				 * the full solution is very difficult */
 				
 				/* handle infinities */
-				if (xval == xval + 1) {
+				if (xval * 0.0 != 0.0) {
 					if (xval < 0)
 						xval = -MY_BIG_NUMBER;
 					else
 						xval = MY_BIG_NUMBER;
 				}
-				if (yval == yval + 1) {
+				if (yval * 0.0 != 0.0) {
 					if (yval < 0)
 						yval = -MY_BIG_NUMBER;
 					else
@@ -1859,92 +2022,37 @@ pp_def('prima_fillpolys',
 				if (yval < -MY_BIG_NUMBER) yval = -MY_BIG_NUMBER;
 				if (xval < -MY_BIG_NUMBER) xval = -MY_BIG_NUMBER;
 				
-				to_plot[n_to_plot].x = xval;
-				to_plot[n_to_plot].y = yval;
+				ADD_POINT(fillpoly, n_to_plot, xval, yval);
 
 				/* Keep track of the number of points added */
 				n_to_plot++;
 			}
-			/* Call apricot's fillpoly function */
 			if (n_to_plot > 2)
-				apc_gp_fill_poly(widget_handle, n_to_plot, to_plot);
+				DRAW_POINTS(fillpoly, apc_gp_fill_poly, n_to_plot);
 		%}
 		
 		/* Free the memory when done */
-		Safefree(to_plot);
-	],
+		FREE_POINT_STORAGE;
+	]
+	. generate_cleanup_code_for(@properties)
+;
+
+(my $good_code = $code) =~ s/ORBADCHECKS//;
+(my $bad_code = $code) =~ s{ORBADCHECKS}{
+					|| \$ISBAD(x(n => i))
+					|| \$ISBAD(y(n => i))};
+$bad_code =~ s/NEXT_I/NEXT_BAD_I/g;
+
+pp_def('prima_fillpolys',
+	Pars => 'x(n); y(n); ' . generate_pars_args_for(@properties),
+	OtherPars => $default_other_pars,
+	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
+	PMCode => generate_PMCode_for('fillpolys', \@properties, qw(x y)),
+	Code => $good_code,
+	BadCode => $bad_code,
 	HandleBad => 1,
-	BadCode => 
-	# Begin by declaring the non-autogenerated the variables I will need
-	q{
-		Point * to_plot;
-		int n_size, i, n_to_plot;
-		double xval, yval;
-	}
-	# Add the auto-generated declaration and initialization code:
-	. initialize_for(@properties)
-	# Continue with my initialization code and the threadloop:
-	. q[
-		/* Allocate an array of Points outside of the threadloop */
-		n_size = $SIZE(n);
-		Newx(to_plot, n_size, Point);
-		
-		/* All set. Start the threadloop with the setters. */
-		threadloop %{
-		]
-		. generate_setter_code_for(@properties)
-		. q[
-			/* Put the x-y data into the to_plot array. I am attempting
-			 * to handle infs gracefully, and I am simply skipping over
-			 * nan values and BAD values.
-			 * Note that polylines draws a gap at bad values, but here
-			 * I simply skip over them.
-			 */
-			n_to_plot = 0;
-			for(i = 0; i < n_size; i++) {
-				xval = $x(n => i);
-				yval = $y(n => i);
-
-				/* Move to the next value if we encounter something bad */
-				if (xval != xval || yval != yval	/* nan check */
-					|| $ISBAD(x(n => i))			/* bad value */
-					|| $ISBAD(y(n => i))) {			/* checks    */
-					continue;
-				}
-
-				/* handle infinities */
-				if (xval == xval + 1) {
-					if (xval < 0)
-						xval = -MY_BIG_NUMBER;
-					else
-						xval = MY_BIG_NUMBER;
-				}
-				if (yval == yval + 1) {
-					if (yval < 0)
-						yval = -MY_BIG_NUMBER;
-					else
-						yval = MY_BIG_NUMBER;
-				}
-				/* Handle very large values */
-				if (yval > MY_BIG_NUMBER) yval = MY_BIG_NUMBER;
-				if (xval > MY_BIG_NUMBER) xval = MY_BIG_NUMBER;
-				if (yval < -MY_BIG_NUMBER) yval = -MY_BIG_NUMBER;
-				if (xval < -MY_BIG_NUMBER) xval = -MY_BIG_NUMBER;
-				
-				to_plot[n_to_plot].x = xval;
-				to_plot[n_to_plot].y = yval;
-
-				/* Keep track of the number of points added */
-				n_to_plot++;
-			}
-			/* Call apricot's fillpoly function */
-			if (n_to_plot > 2)
-				apc_gp_fill_poly(widget_handle, n_to_plot, to_plot);
-		%}
-		
-		/* Free the memory when done */
-		Safefree(to_plot);
-	],
 	Doc => q{
 
 =head2 pdl_fillpolys
@@ -2031,12 +2139,14 @@ pp_def('prima_fill_sectors',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's arc function */
-			apc_gp_fill_sector(widget_handle, $x(), $y(), $x_diameter(),
+			my->fill_sector(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	Doc => q{
 
 =head2 pdl_fill_sectors
@@ -2110,11 +2220,13 @@ pp_def('prima_flood_fills',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's flood fill function */
-			apc_gp_flood_fill(widget_handle, $x(), $y(), (Color)$color(), $singleborder());
+			my->flood_fill(widget_handle, $x(), $y(), (Color)$color(), $singleborder());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	Doc => q{
 
 =head2 pdl_flood_fills
@@ -2178,7 +2290,7 @@ pp_def('prima_lines',
 		# properties. It would be nice to skip bad values beforehand, but we
 		# need the widget handle before we can check the points:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Assemble the big number checker */
 			Point p = apc_widget_get_size(widget_handle);
 			to_check.height = p.y;
@@ -2190,11 +2302,13 @@ pp_def('prima_lines',
 			
 			/* Call apricot's lines function if the line should be drawn */
 			if (_check_for_big_numbers(&to_check) > 0) {
-				apc_gp_line(widget_handle, to_check.x1, to_check.y1
+				my->line(widget_handle, to_check.x1, to_check.y1
 					, to_check.x2, to_check.y2);
 			}
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	BadCode => 
 	# I'll need a couple of local variables to do my work here:
 	q{
@@ -2215,7 +2329,7 @@ pp_def('prima_lines',
 		# properties. It would be nice to skip bad values beforehand, but we
 		# need the widget handle before we can check the points:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Assemble the big number checker */
 			Point p = apc_widget_get_size(widget_handle);
 			to_check.height = p.y;
@@ -2227,11 +2341,13 @@ pp_def('prima_lines',
 			
 			/* Call apricot's lines function if the line should be drawn */
 			if (_check_for_big_numbers(&to_check) > 0) {
-				apc_gp_line(widget_handle, to_check.x1, to_check.y1
+				my->line(widget_handle, to_check.x1, to_check.y1
 					, to_check.x2, to_check.y2);
 			}
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	HandleBad => 1,
 	Doc => q{
 
@@ -2272,91 +2388,91 @@ properties, in their correct order.
 # prima_pixels #
 ################
 
-@properties = qw(colors clipRects translates);
-pp_def('prima_pixels',
-	Pars => 'int x(); int y(); int [o] color(); ' . generate_pars_args_for(@properties),
-	OtherPars => $default_other_pars,
-	GenericTypes => ['L'],
-	PMFunc => undef,
-	NoPthread => 1,
-	PMCode => generate_PMCode_for('pixels', \@properties, qw(x y color)),
-	Code => 
-	# I don't need any extra variables for pixels, so I'll just add the
-	# auto-generated declaration and initialization code:
-	  initialize_for(@properties)
-	# Continue with the threadloop:
-	. q{
-		threadloop %{
-			/* Unlike usual, I will not use the setter code. Rather,
-			 * the is_setting_colors will determine whether or not I
-			 * set the pixel:
-			 *
-			 * working here: no initialize_for(@properties)?
-			 */
-			if (is_setting_colors) {
-				apc_gp_set_pixel(widget_handle, $x(), $y(), (Color)$colors());
-			}
-			
-			/* No matter what, get the previous color. NOTE that the
-			 * retrieved results goes in color (singular), not colors
-			 */
-			$color() = (PDL_Long) apc_gp_get_pixel(widget_handle, $x(), $y());
-		%}
-	},
-	BadCode =>
-	# I don't need any extra variables for pixels, so I'll just add the
-	# auto-generated declaration and initialization code:
-	  initialize_for(@properties)
-	# Continue with the threadloop:
-	. q{
-		threadloop %{
-			/* Unlike usual, I will not use the setter code. Rather,
-			 * the is_setting_colors, and the good state for everything, is
-			 * will determine whether or not I set the pixel:
-			 */
-			if (is_setting_colors && $ISGOOD(x()) && $ISGOOD(y())
-					&& $ISGOOD(colors())) {
-				apc_gp_set_pixel(widget_handle, $x(), $y(), (Color)$colors());
-			}
-			
-			/* No matter what, get the previous color. NOTE that the
-			 * retrieved results goes in color (singular), not colors
-			 */
-			$color() = (PDL_Long) apc_gp_get_pixel(widget_handle, $x(), $y());
-		%}
-	},
-	HandleBad => 1,
-	Doc => q{
-
-=head2 pdl_pixels
-
-  Prima Signature: (widget; x(); y(); properties)
-
-=for ref
-
-Sets the pixel at (x, y) to the current color, or to the value(s) passed
-in the C<color> property.
-
-=for example
-
- working here
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, clipRects, and
-translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+#@properties = qw(colors clipRects translates);
+#pp_def('prima_pixels',
+#	Pars => 'int x(); int y(); int [o] color(); ' . generate_pars_args_for(@properties),
+#	OtherPars => $default_other_pars,
+#	GenericTypes => ['L'],
+#	PMFunc => undef,
+#	NoPthread => 1,
+#	PMCode => generate_PMCode_for('pixels', \@properties, qw(x y color)),
+#	Code => 
+#	# I don't need any extra variables for pixels, so I'll just add the
+#	# auto-generated declaration and initialization code:
+#	  initialize_for(@properties)
+#	# Continue with the threadloop:
+#	. add_line_numbering q{
+#		threadloop %{
+#			/* Unlike usual, I will not use the setter code. Rather,
+#			 * the is_setting_colors will determine whether or not I
+#			 * set the pixel:
+#			 *
+#			 * working here: no initialize_for(@properties)?
+#			 */
+#			if (is_setting_colors) {
+#				my->set_pixel(widget_handle, $x(), $y(), (Color)$colors());
+#			}
+#			
+#			/* No matter what, get the previous color. NOTE that the
+#			 * retrieved results goes in color (singular), not colors
+#			 */
+#			$color() = (PDL_Long) my->get_pixel(widget_handle, $x(), $y());
+#		%}
+#	},
+#	BadCode =>
+#	# I don't need any extra variables for pixels, so I'll just add the
+#	# auto-generated declaration and initialization code:
+#	  initialize_for(@properties)
+#	# Continue with the threadloop:
+#	. add_line_numbering q{
+#		threadloop %{
+#			/* Unlike usual, I will not use the setter code. Rather,
+#			 * the is_setting_colors, and the good state for everything, is
+#			 * will determine whether or not I set the pixel:
+#			 */
+#			if (is_setting_colors && $ISGOOD(x()) && $ISGOOD(y())
+#					&& $ISGOOD(colors())) {
+#				my->set_pixel(widget_handle, $x(), $y(), (Color)$colors());
+#			}
+#			
+#			/* No matter what, get the previous color. NOTE that the
+#			 * retrieved results goes in color (singular), not colors
+#			 */
+#			$color() = (PDL_Long) my->get_pixel(widget_handle, $x(), $y());
+#		%}
+#	},
+#	HandleBad => 1,
+#	Doc => q{
+#
+#=head2 pdl_pixels
+#
+#  Prima Signature: (widget; x(); y(); properties)
+#
+#=for ref
+#
+#Sets the pixel at (x, y) to the current color, or to the value(s) passed
+#in the C<color> property.
+#
+#=for example
+#
+# working here
+#
+#=cut
+#
+#}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
+#\n=cut
+#
+#");
+#
+#=pod
+#
+#Applicable properties are likely to include handles, colors, clipRects, and
+#translates. However, this list could be
+#out of date or out of order. If you've installed this module on your own
+#machine, the documentation is guaranteed to describe the applicable
+#properties, in their correct order.
+#
+#=cut
 
 ###################
 # prima_polylines #
@@ -2364,6 +2480,104 @@ properties, in their correct order.
 
 @properties = qw(colors backColors clipRects lineEnds lineJoins linePatterns
 					lineWidths rops rop2s translates);
+$code = 	# Begin by declaring the non-autogenerated variables I will need
+	q{
+		DECLARE_POINT_DATA;
+		int n_size, i, n_to_plot;
+		int width, height, check_result;
+		big_number_container to_check;
+	}
+	# Add the auto-generated declaration and initialization code:
+	. initialize_for(@properties)
+	# Continue with my initialization code and the threadloop:
+	. add_line_numbering q[
+		/* Allocate an array of Points outside of the threadloop */
+		n_size = $SIZE(n);
+		INIT_POINT_DATA;
+		
+		/* All set. Start the threadloop with the setters. */
+		threadloop %{
+		]
+		. generate_setter_code_for(@properties)
+		. add_line_numbering q[
+			/* Put the x-y data into the points_to_plot array. I am attempting
+			 * to handle infs and nans gracefully by treating the same
+			 * way as I would bad values.
+			 */
+			
+			ENSURE_POINT_STORAGE(polyline, n_size);
+			
+			/* Get the width and height of the widget */
+			Point p = my->get_size(widget_handle);
+			to_check.height = p.y;
+			to_check.width = p.x;
+			
+			i = 0;
+			NEXT_I: while(i < n_size - 1) {
+				to_check.x1 = $x(n => i);
+				to_check.y1 = $y(n => i);
+				i++;
+				CHECK_FOR_BAD;
+				/* Add the points to the collection */
+				ADD_POINT(polyline, 0, to_check.x1, to_check.y1);
+				
+				for(n_to_plot = 1; i < n_size; i++, n_to_plot++) {
+					to_check.x2 = $x(n => i);
+					to_check.y2 = $y(n => i);
+					
+					check_result = IS_BAD ? 0 : _check_for_big_numbers(&to_check);
+					
+					if (check_result == 0) {
+						/* That means "don't plot this segment", which means
+						 * I should plot the other pieces and start over with
+						 * a new sub-segment. */
+						if (n_to_plot > 1)
+							DRAW_POINTS(polyline, apc_gp_draw_poly, n_to_plot);
+						
+						goto NEXT_I;
+					}
+					if (check_result > 1) {
+						/* That means "I had to adjust x and y", which means
+						 * I should plot the current sub-segment and start a
+						 * new sub-segment. */
+						if (n_to_plot == 1) {
+							/* re-add the zeroeth point since it might have
+							 * been changed. Note that all later points will
+							 * only trigger this if they are exotic, but the
+							 * n==1 could trigger this is the zeroeth point is
+							 * exotic */
+							ADD_POINT(polyline, 0, to_check.x1, to_check.y1);
+						}
+						
+						ADD_POINT(polyline, n_to_plot+1, to_check.x2, to_check.y2);
+						goto NEXT_I;
+					}
+					
+					ADD_POINT(polyline, n_to_plot, to_check.x2, to_check.y2);
+					
+					to_check.x1 = to_check.x2;
+					to_check.y1 = to_check.y2;
+				}
+				
+				/* The only way we reach here is if the last segment was fine,
+				 * but was not drawn, so draw it. */
+				DRAW_POINTS(polyline, apc_gp_draw_poly, n_to_plot);
+			}
+		%}
+		
+		/* Free the memory when done */
+		FREE_POINT_STORAGE;
+	]
+	. generate_cleanup_code_for(@properties)
+	;
+
+($good_code = $code) =~ s/CHECK_FOR_BAD//;
+$good_code =~ s/IS_BAD/0/;
+($bad_code = $code) =~ s{CHECK_FOR_BAD}{if (\$ISBAD(x(n => i-1)) || \$ISBAD(y(n => i-1))) goto NEXT_I};
+$bad_code =~ s{IS_BAD}{(\$ISBAD(x(n => i)) || \$ISBAD(y(n => i)))};
+$bad_code =~ s/NEXT_I/NEXT_BAD_I/g;
+
+
 pp_def('prima_polylines',
 	Pars => 'x(n); y(n); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
@@ -2371,167 +2585,10 @@ pp_def('prima_polylines',
 	PMFunc => undef,
 	NoPthread => 1,
 	PMCode => generate_PMCode_for('polylines', \@properties, qw(x y)),
-	Code => 
-	# Begin by declaring the non-autogenerated variables I will need
-	q{
-		Point * to_plot;
-		int n_size, i, j;
-		int width, height, check_result;
-		big_number_container to_check;
-	}
-	# Add the auto-generated declaration and initialization code:
-	. initialize_for(@properties)
-	# Continue with my initialization code and the threadloop:
-	. q[
-		/* Allocate an array of Points outside of the threadloop */
-		n_size = $SIZE(n);
-		Newx(to_plot, n_size, Point);
-		
-		/* All set. Start the threadloop with the setters. */
-		threadloop %{
-		]
-		. generate_setter_code_for(@properties)
-		. q[
-			/* Put the x-y data into the to_plot array. I am attempting
-			 * to handle infs and nans gracefully by treating the same
-			 * way as I would bad values.
-			 */
-		
-			/* Get the width and height of the widget */
-			Point p = apc_widget_get_size(widget_handle);
-			to_check.height = p.y;
-			to_check.width = p.x;
-			
-			i = 0;
-			NEXT_GOOD_CODE_I: while(i < n_size - 1) {
-				to_plot[0].x = to_check.x1 = $x(n => i);
-				to_plot[0].y = to_check.y1 = $y(n => i);
-				i++;
-				
-				for(j = 1; i < n_size; i++, j++) {
-					to_check.x2 = $x(n => i);
-					to_check.y2 = $y(n => i);
-					
-					check_result = _check_for_big_numbers(&to_check);
-					
-					if (check_result == 0) {
-						/* That means "don't plot this segment", which means
-						 * I should plot the other pieces and start over with
-						 * a new sub-segment. */
-						if (j > 1) apc_gp_draw_poly(widget_handle, j, to_plot);
-						goto NEXT_GOOD_CODE_I;
-					}
-					if (check_result > 1) {
-						/* That means "I had to adjust x and y", which means
-						 * I should plot the current sub-segment and start a
-						 * new sub-segment. */
-						if (j == 1) {
-							to_plot[0].x = to_check.x1;
-							to_plot[0].y = to_check.y1;
-						}
-						to_plot[j].x = to_check.x2;
-						to_plot[j].y = to_check.y2;
-						
-						apc_gp_draw_poly(widget_handle, j+1, to_plot);
-						goto NEXT_GOOD_CODE_I;
-					}
-					
-					to_plot[j].x = to_check.x2;
-					to_plot[j].y = to_check.y2;
-					to_check.x1 = to_check.x2;
-					to_check.y1 = to_check.y2;
-				}
-				
-				/* The only way we reach here is if the last segment was fine,
-				 * but was not drawn, so draw it. */
-				apc_gp_draw_poly(widget_handle, j, to_plot);
-			}
-		%}
-		
-		/* Free the memory when done */
-		Safefree(to_plot);
-	],
+	Code => $good_code,
 	HandleBad => 1,
-	BadCode => 
-	# Begin by declaring the non-autogenerated variables I will need
-	q{
-		Point * to_plot;
-		int n_size, i, j;
-		int width, height, check_result;
-		big_number_container to_check;
-	}
-	# Add the auto-generated declaration and initialization code:
-	. initialize_for(@properties)
-	# Continue with my initialization code and the threadloop:
-	. q[
-		/* Allocate an array of Points outside of the threadloop */
-		n_size = $SIZE(n);
-		Newx(to_plot, n_size, Point);
-		
-		/* All set. Start the threadloop with the setters. */
-		threadloop %{
-		]
-		. generate_setter_code_for(@properties)
-		. q[
-			/* Put the x-y data into the to_plot array. I am attempting
-			 * to handle infs and nans gracefully by treating the same
-			 * way as I would bad values.
-			 */
-			
-			/* Get the width and height of the widget */
-			Point p = apc_widget_get_size(widget_handle);
-			to_check.height = p.y;
-			to_check.width = p.x;
-			
-			i = 0;
-			NEXT_BAD_CODE_I: while(i < n_size - 1) {
-				to_plot[0].x = to_check.x1 = $x(n => i);
-				to_plot[0].y = to_check.y1 = $y(n => i);
-				i++;
-				if ($ISBAD(x(n => i-1)) || $ISBAD(y(n => i-1))) goto NEXT_BAD_CODE_I;
-				
-				for(j = 1; i < n_size; i++, j++) {
-					to_check.x2 = $x(n => i);
-					to_check.y2 = $y(n => i);
-					if ($ISBAD(x(n => i)) || $ISBAD(y(n => i))) check_result = 0;
-					else check_result = _check_for_big_numbers(&to_check);
-					if (check_result == 0) {
-						/* That means "don't plot this segment", which means
-						 * I should plot the other pieces and start over with
-						 * a new sub-segment. */
-						if (j > 1) apc_gp_draw_poly(widget_handle, j, to_plot);
-						goto NEXT_BAD_CODE_I;
-					}
-					if (check_result > 1) {
-						/* That means "I had to adjust x and y", which means
-						 * I should plot the current sub-segment and start a
-						 * new sub-segment. */
-						if (j == 1) {
-							to_plot[0].x = to_check.x1;
-							to_plot[0].y = to_check.y1;
-						}
-						to_plot[j].x = to_check.x2;
-						to_plot[j].y = to_check.y2;
-						
-						apc_gp_draw_poly(widget_handle, j+1, to_plot);
-						goto NEXT_BAD_CODE_I;
-					}
-					
-					to_plot[j].x = to_check.x2;
-					to_plot[j].y = to_check.y2;
-					to_check.x1 = to_check.x2;
-					to_check.y1 = to_check.y2;
-				}
-				
-				/* The only way we reach here is if the last segment was fine,
-				 * but was not drawn, so draw it. */
-				apc_gp_draw_poly(widget_handle, j, to_plot);
-				}
-		%}
-		
-		/* Free the memory when done */
-		Safefree(to_plot);
-	],
+	BadCode => $bad_code,
+
 	Doc => q{
 
 =head2 pdl_polylines
@@ -2617,11 +2674,13 @@ pp_def('prima_rectangles',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's rectangle function */
-			apc_gp_rectangle(widget_handle, $x1(), $y1(), $x2(), $y2());
+			my->rectangle(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	Doc => q{
 
 =head2 pdl_rectangles
@@ -2678,12 +2737,14 @@ pp_def('prima_sectors',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Call apricot's arc function */
-			apc_gp_sector(widget_handle, $x(), $y(), $x_diameter(),
+			my->sector(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	],
+	]
+	. generate_cleanup_code_for(@properties),
+
 	Doc => q{
 
 =head2 pdl_sectors
@@ -2760,9 +2821,11 @@ ModuleMaterial
 # The code and badcode are nearly identical, so I'll write it once here and
 # do the handful of manipulations below.
 
+@properties = qw(colors backColors clipRects fillPatterns lineEnds
+				linePatterns lineWidths rops rop2s translates);
 	# I'll need to allocate the memory for each Symbol drawn:
-my $code = 	q{
-		Point * to_plot;
+$code = 	q{
+		DECLARE_POINT_DATA;
 		int i, j, N_sides, N_steps, reduced_skip;
 		double angle;
 		double TWOPI = 8.0 * atan2(1,1);
@@ -2772,12 +2835,13 @@ my $code = 	q{
 	. initialize_for(@properties)
 	# Continue with the threadloop:
 	. q[
+		INIT_POINT_DATA;
 		threadloop %{
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. q[
+		. add_line_numbering q[
 			/* Figure out the reduced_skip */
 			reduced_skip = $skip() % $N_points();
 			
@@ -2789,10 +2853,10 @@ my $code = 	q{
 			else if ($N_points() == 0 || $N_points() == 1) {
 				/* Handle the circle case up-front */
 				if ($filled() == 0) {
-					apc_gp_ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
+					my->ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
 				}
 				else {
-					apc_gp_fill_ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
+					my->fill_ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
 				}
 			}
 			else if (reduced_skip == 0
@@ -2803,7 +2867,7 @@ my $code = 	q{
 				N_sides = $N_points();
 				for(i = 0; i < N_sides; ++i) {
 					/* draw lines from the center to each point */
-					apc_gp_line(widget_handle, $x(), $y()
+					my->line(widget_handle, $x(), $y()
 						, $x() + $size() * cos(angle)
 						, $y() + $size() * sin(angle));
 					/* update the angle */
@@ -2811,10 +2875,6 @@ my $code = 	q{
 				}
 			}
 			else {
-				/* Fix reduced_skip so it's always less than half N_points */
-			//	if (reduced_skip > $N_points() / 2)
-			//		reduced_skip = $N_points() - reduced_skip;
-				
 				/* Look for the least common divisor of reduced_skip and N_points */
 				N_steps = 1;
 				for (i = 2; i <= reduced_skip; ++i)
@@ -2825,43 +2885,41 @@ my $code = 	q{
 				N_sides = $N_points() / N_steps + 1;
 				
 				/* Allocate the memory needed for the Symbol */
-				Newx(to_plot, N_sides, Point);
+				ENSURE_POINT_STORAGE(polyline, N_sides);
 				
 				for (j = 0; j < N_steps; j++) {
 					angle = TWOPI * ($orientation() / 360.0 + (double)j / $N_points());
 					/* Calculate the points for the Symbol */
 					for (i = 0; i < N_sides; ++i) {
-						to_plot[i].x = $x() + $size() * cos(angle);
-						to_plot[i].y = $y() + $size() * sin(angle);
+						ADD_POINT(polyline, i
+							, $x() + $size() * cos(angle)
+							, $y() + $size() * sin(angle));
 						angle += TWOPI/$N_points() * reduced_skip;
 					}
 					
 					if ($filled() == 0) {
-					/* Draw a non-filled polygon */
-						apc_gp_draw_poly(widget_handle, N_sides, to_plot);
+						/* Draw a non-filled polygon */
+						DRAW_POINTS(polyline, apc_gp_draw_poly, N_sides);
 					}
 					else {
 						/* Draw a filled-in polygon */
-						apc_gp_fill_poly(widget_handle, N_sides, to_plot);
+						DRAW_POINTS(fillpoly, apc_gp_fill_poly, N_sides);
 					}
 				}
 				
-				/* Free the allocated memory for the Symbol */
-				Safefree(to_plot);
+				/* Free the memory when done */
+				FREE_POINT_STORAGE;
 			}
 		%}
-	];
+	]
+	. generate_cleanup_code_for(@properties);
 
-my $good_code = $code;
-$good_code =~ s/BADCHECKS//;
-my $bad_code = $code;
+($good_code = $code) =~ s/BADCHECKS//;
 my $bad_checks = '|| $ISBAD(x()) || $ISBAD(y()) || $ISBAD(N_points())
 					|| $ISBAD(orientation()) || $ISBAD(filled())
 					|| $ISBAD(size()) || $ISBAD(skip())';
-$bad_code =~ s/BADCHECKS/$bad_checks/;
+($bad_code = $code) =~ s/BADCHECKS/$bad_checks/;
 
-@properties = qw(colors backColors clipRects fillPatterns lineEnds
-				linePatterns lineWidths rops rop2s translates);
 pp_def('prima_symbols',
 	Pars => 'x(); y(); byte N_points(); orientation(); byte filled(); int size(); byte skip(); '
 				. generate_pars_args_for(@properties),
@@ -3313,6 +3371,7 @@ pp_def('hsv_to_rgb',
 			}
 		%}
 	],
+
 	Doc => <<DOCUMENTATION,
 
 =pod
@@ -3441,6 +3500,7 @@ pp_def('rgb_to_hsv',
 			] . $rgb_to_hsv_code . q[
 		%}
 	],
+
 	HandleBad => 1,
 	BadCode => q[
 		$GENERIC(hsv) r, g, b, h, s, v, max, min, delta;
@@ -3458,6 +3518,7 @@ pp_def('rgb_to_hsv',
 			}
 		%}
 	],
+
 	Doc => <<DOCUMENTATION,
 
 =pod
@@ -3704,6 +3765,7 @@ pp_def ('collate_min_max_wrt_many',
 			%}
 		%}
 	],
+
 	PMCode => <<'ModuleMaterial',
 
 =head2 collate_min_max_wrt_many
@@ -4044,14 +4106,12 @@ pp_done();
 open my $in, '<', 'Prima.pm';
 open my $out, '>', 'new_Prima.pm';
 
-# Add 'use Prima' to the top if this is a Windows machine:
-if ($^O =~ /MS/ or $^O eq 'cygwin') {
-	print $out <<'WINDOWS_ONLY';
-# This is only included on Windows machines:
+# Add 'use Prima' to the top so that symbol lookups work correctly.
+print $out <<'ALWAYS_LOAD';
+# Always load Prima first:
 use Prima;
 
-WINDOWS_ONLY
-}
+ALWAYS_LOAD
 
 my $is_discarding = 0;
 my $found_functions = 0;

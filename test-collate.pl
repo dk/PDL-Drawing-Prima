@@ -59,6 +59,7 @@ print "Collapsed, we get $blob_x_min\nand $blob_x_max\n";
 my $min = $blob_x_min->cat($blob_x_min->sequence, $blob_x_min)->whereND($blob_x_min->isgood);
 my $max = $blob_x_max->cat($blob_x_max->sequence, $blob_x_max)->whereND($blob_x_max->isgood);
 
-my ($min_mask, $max_mask) = PDL::trim_collated($min, $max);
+my $min_mask = PDL::trim_collated_min($min);
+my $max_mask = PDL::trim_collated_max($max);
 print "combined and trimmed, we have\nmin: ", $min->whereND($min_mask), "\n";
 print "max: ", $max->whereND($max_mask), "\n";

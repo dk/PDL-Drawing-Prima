@@ -36,7 +36,7 @@ use blib;
  my $colors = $hsv->hsv_to_rgb->rgb_to_color;
  
  # Draw them:
- $canvas->pdl_ngons($x, $y, $N_points, $orientation, 0, $size, 2);
+ $canvas->pdl_symbols($x, $y, $N_points, $orientation, 0, $size, 2);
          
      },
      backColor => cl::White,
