@@ -6,7 +6,19 @@ use blib;
  use Prima qw(Application);
  use PDL::Drawing::Prima;
  
- my $window = Prima::MainWindow->create(
+package My::Application;
+our @ISA = qw(Prima::MainWindow);
+
+sub polyline {
+	my $self = shift;
+	print "Got args ", join(', ', @{$_[0]}), "\n";
+	$self->SUPER::polyline(@_);
+	print "Returning!\n";
+}
+
+package main;
+
+ my $window = My::Application->create(
      text    => 'PDL::Graphics::Prima Test',
      onPaint => sub {
          my ( $self, $canvas) = @_;

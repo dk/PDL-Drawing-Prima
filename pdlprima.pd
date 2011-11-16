@@ -349,7 +349,7 @@ pp_addhdr(add_line_numbering <<'HEADER');
 		else {																\
 			/* Trim the array, in case any values were nan and therefore */	\
 			/* skipped */													\
-			av_fill(array_to_plot, 2*n_to_plot);							\
+			av_fill(array_to_plot, 2*n_to_plot - 1);						\
 			/* working here - should I just use newRV? */					\
 			my-> function (widget_handle, newRV_noinc((SV*)array_to_plot));	\
 		}																	\
