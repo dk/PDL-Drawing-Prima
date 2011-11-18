@@ -270,6 +270,13 @@ sub add_line_numbering ($) {
 	return "\n# line " . ($line + 1) . " \"$filename\"\n" . $string;
 }
 
+pp_add_boot q{
+	/* Initialize the Drawable virtual method table pointer, which is declared
+	 * below and used to detect if the widget supports direct calls using the
+	 * apricot graphics drawing functions. */
+	CDrawable = (PDrawable_vmt)gimme_the_vmt( "Prima::Drawable");
+};
+
 pp_addhdr(add_line_numbering <<'HEADER'); 
 
 /* apricot is the (strangely named) header file that contains all of the
@@ -282,6 +289,10 @@ pp_addhdr(add_line_numbering <<'HEADER');
 /* working here - is this cross-platform? */
 #define my CDrawable(widget_handle)
 #include <generic/Drawable.h>
+
+/* The virtual method table for Drawable objects, which I need for the
+ * introspection in the POINT methods below */
+PDrawable_vmt CDrawable;
 
 #define DECLARE_POINT_DATA													\
 	Point * points_to_plot;													\
@@ -316,7 +327,7 @@ pp_addhdr(add_line_numbering <<'HEADER');
 
 #define ADD_POINT(function, index, xval, yval)								\
 	do {																	\
-		if (my-> function == Drawable_ ## function) {						\
+		if (my-> function == CDrawable-> function) {						\
 			points_to_plot[index].x = xval;									\
 			points_to_plot[index].y = yval;									\
 		}																	\
@@ -341,7 +352,7 @@ pp_addhdr(add_line_numbering <<'HEADER');
 
 #define DRAW_POINTS(function, apricot_function, n_to_plot)					\
 	do {																	\
-		if (my-> function == Drawable_ ## function) {						\
+		if (my-> function == CDrawable-> function) {						\
 			/* Call apricot's function */									\
 		/*	printf("Drawing %s\n", #function);	*/							\
 			apricot_function (widget_handle, n_to_plot, points_to_plot);	\
@@ -4037,15 +4048,6 @@ L<Prima::Drawable/fill_spline>, L<Prima::Drawable/put_image>,
 L<Prima::Drawable/put_image_indirect>, L<Prima::Drawable/rect3d>,
 L<Prima::Drawable/rect_focus>, L<Prima::Drawable/spline>,
 L<Prima::Drawable/stretch_image>, and L<Prima::Drawable/text_out>
-
-=item PS Functionality
-
-Currently, this library only implements PDL functions using the apricot
-library. Since L<Prima::PS::Drawable> implements its own drawing
-functions, none of the PDL drawing functions will work with a PS drawable.
-Either they need their own specially created functions that will emit postscript
-code, or I need to find a way to find the Drawabel object's drawing functions
-and call those from these bindings, instead of the direct drawing methods.
 
 =item Bad Value Support
 
