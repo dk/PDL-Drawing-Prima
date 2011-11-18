@@ -63,7 +63,8 @@ my $main_window = Prima::MainWindow-> create(
 		# Give the latest coupling:
 		$self->color(cl::Black);
 		$self->text_out("K = $K", 0, 0); #; $timing_status", 0, 0);
-	}
+	},
+	buffered => 1,
 );
 
 use Time::HiRes qw(gettimeofday tv_interval);
