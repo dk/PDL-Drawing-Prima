@@ -9,10 +9,22 @@ use blib;
 package My::Application;
 our @ISA = qw(Prima::MainWindow);
 
+sub color {
+	print 'color got args [', join('], [', @_), "]\n";
+	return $_[0]->SUPER::color($_[1]);
+}
+
 sub polyline {
 	my $self = shift;
-	print "Got args ", join(', ', @{$_[0]}), "\n";
+	print "polyline got args ", join(', ', @{$_[0]}), "\n";
 	$self->SUPER::polyline(@_);
+	print "Returning!\n";
+}
+
+sub fillpoly {
+	my $self = shift;
+	print "fillpoly got args ", join(', ', @{$_[0]}), "\n";
+	$self->SUPER::fillpoly(@_);
 	print "Returning!\n";
 }
 
@@ -29,10 +41,16 @@ package main;
          ### Example code goes here ###
  use PDL::NiceSlice;
  
+ # Draw a simple polyline
+ my $x = sequence(50) * 10;
+ my $y = 2 * $x + $x->grandom * 10;
+ $canvas->pdl_polylines($x, $y);
+ 
+ 
  # Draw 50 shapes at random points:
  my ($width, $height) = $canvas->size;
- my $x = random(50) * $width;
- my $y = $x->random * $height;
+ $x = random(50) * $width;
+ $y = $x->random * $height;
  
  # Generate some fun random shapes and sizes:
  my $N_points = 1 + 9 * $x->random;
