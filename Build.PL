@@ -42,14 +42,14 @@ my $build = Module::Build->new(
 );
 
 # Find the Prima library for linking:
-if ($build->is_windowsish) {
+if ($^O =~ /MS/ or $^O eq 'cygwin') {
 	my $path = $Prima::Config::Config{dlname};
 	# Extract the path. This assumes that the path seperator is a single
 	# character, but otherwise is not system-specific. Since it only applies
 	# to MS and Cygwin, I think it'll be fine:
 	die "Unable to determine the Prima library name\n"
 		unless $path =~ s/.Prima\.[^.]+$//;
-	$build->extra_linker_flags("-L$path -lPrima");
+	$build->extra_linker_flags("-L$path", "-lPrima");
 }
 
 $build->create_build_script;
