@@ -5,8 +5,14 @@ Prima.c
 Prima.o
 Prima.pm
 Prima.xs
+Utils.c
+Utils.o
+Utils.pm
+Utils.xs
 blib/
 pm_to_blib
 install.sh
 script.pl
-
+_build/
+*.bak
+Build
