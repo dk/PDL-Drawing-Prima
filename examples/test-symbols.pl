@@ -8,6 +8,7 @@ use blib;
  
  my $window = Prima::MainWindow->create(
      text    => 'PDL::Graphics::Prima Test',
+     fillWinding => 1,
      onPaint => sub {
          my ( $self, $canvas) = @_;
  

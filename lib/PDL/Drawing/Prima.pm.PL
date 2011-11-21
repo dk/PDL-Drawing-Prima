@@ -1109,7 +1109,7 @@ $set_code_for{translates} = add_line_numbering q{
 };
 
 # Fill winding works nicely without any alteration:
-$pars_args_for{fillWindings} = 'int fillWindings()';
+$pars_args_for{fillWindings} = 'byte fillWindings()';
 
 # Fill pattern requires that we pack the pattern into an 8x8 Perl array.
 # Kinda stupid, but oh well, what can we do?
@@ -2984,7 +2984,8 @@ The C<orientation> is measured in degrees, starting from horizontal, with
 increasing angles rotating the line counter-clockwise. The value for C<skip>
 is ignored.
 
-This is particulary useful for visualizing slope-fields.
+This is particulary useful for visualizing slope-fields (although calculating
+the angles for the slope field is surprisingly tricky).
 
 =item three or more
 
@@ -3074,6 +3075,12 @@ For all nonzero values of C<skip>, specifying a fill will end up with
 a filled shape instead of a line drawing.
 
 =back
+
+By default, filled stars and other symbols with odd numbers of points have a
+hole in their middle. However, Prima provides a means for indicating that you
+want such shapes filled; that is the C<fillWinding> property. As with almost all
+graphical properties, you can specify the C<fillWinding> property for each
+symbol by specifying the C<fillWindings> piddle.
 
 This example creates a table of shapes. It uses an argument from the command
 line to determine the line width.
