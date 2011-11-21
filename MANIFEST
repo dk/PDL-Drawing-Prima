@@ -1,9 +1,4 @@
-bugs
 Makefile.PL
 MANIFEST
 pdlprima.pd
-pdlpsprima.pd
 README
-test.pl
-test2.pl
-test4.pl

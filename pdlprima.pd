@@ -294,6 +294,9 @@ pp_addhdr(add_line_numbering <<'HEADER');
  * introspection in the POINT methods below */
 PDrawable_vmt CDrawable;
 
+/* get_size requires this dummy variable */
+Point Point_buffer;
+
 #define DECLARE_POINT_DATA													\
 	Point * points_to_plot;													\
 	AV * array_to_plot;														\
@@ -2303,7 +2306,7 @@ pp_def('prima_lines',
 		. generate_setter_code_for(@properties)
 		. add_line_numbering q[
 			/* Assemble the big number checker */
-			Point p = apc_widget_get_size(widget_handle);
+			Point p = my->get_size(widget_handle);
 			to_check.height = p.y;
 			to_check.width = p.x;
 			to_check.x1 = $x1();
@@ -2342,7 +2345,7 @@ pp_def('prima_lines',
 		. generate_setter_code_for(@properties)
 		. add_line_numbering q[
 			/* Assemble the big number checker */
-			Point p = apc_widget_get_size(widget_handle);
+			Point p = my->get_size(widget_handle);
 			to_check.height = p.y;
 			to_check.width = p.x;
 			to_check.x1 = $x1();
