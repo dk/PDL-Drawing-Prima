@@ -20,7 +20,7 @@ use blib;
  
  # Generate a table of shapes:
  my @dims = (20, 2, 20);
- my $N_points = xvals(@dims)->clump(2) + 1;
+ my $N_points = xvals(@dims)->clump(2);
  my $orientation = 0;
  my $filled = yvals(@dims)->clump(2);
  my $size = 10;

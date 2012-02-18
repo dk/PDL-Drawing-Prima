@@ -2859,7 +2859,7 @@ $code = 	q{
 		. generate_setter_code_for(@properties)
 		. add_line_numbering q[
 			/* Figure out the reduced_skip */
-			reduced_skip = $skip() % $N_points();
+			if ($N_points() > 2) reduced_skip = $skip() % $N_points();
 			
 			/* Skip bad values */
 			if(is_nan($x()) || is_nan($y()) || is_inf($x()) || is_inf($y())
