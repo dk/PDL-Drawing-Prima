@@ -740,6 +740,8 @@ corresponding position will not be analyzed.
 
 =cut
 
+use Carp 'croak';
+
 sub PDL::collate_min_max_wrt_many {
 	my ($min_to_check, $min_index, $max_to_check, $max_index, $N_pixels
 		, @extra_piddles) = @_;
