@@ -265,17 +265,9 @@ ModuleMaterial
 =for details
 As far as I can tell, PDL::PP only defines the '_<func>_int' form of a function
 when you specify a PMCode in the pp_def. I can't figure out where this happens
-in PP.pm, but that appears to be the output behavior. For an introduction to
-postscript, see http://local.wasp.uwa.edu.au/~pbourke/dataformats/postscript/
-and http://www.physics.emory.edu/~weeks/graphics/howtops1.html
+in PP.pm, but that appears to be the output behavior.
 
 =cut
-
-sub add_line_numbering ($) {
-	my $string = shift;
-	my (undef, $filename, $line) = caller;
-	return "\n# line " . ($line + 1) . " \"$filename\"\n" . $string;
-}
 
 pp_add_boot q{
 	/* Initialize the Drawable virtual method table pointer, which is declared
@@ -284,7 +276,7 @@ pp_add_boot q{
 	CDrawable = (PDrawable_vmt)gimme_the_vmt( "Prima::Drawable");
 };
 
-pp_addhdr(add_line_numbering <<'HEADER'); 
+pp_addhdr(pp_line_numbers(__LINE__ + 1, <<'HEADER'));
 
 /* apricot is the (strangely named) header file that contains all of the
  * cross-platform functions. */
@@ -978,11 +970,11 @@ apricot function for this function is itself called. For example:
 =cut
 
 my %set_code_for = (
-	colors => add_line_numbering q{
+	colors => pp_line_numbers (__LINE__, q{
 				/* cast the integer as a Colors type (which itself is a
 				 * 32-bit int, so maybe this is unnecessary */
 				my->set_color(widget_handle, (Color)$colors());
-},
+	}),
 );
 
 sub generate_single_setter_code_for {
@@ -1065,21 +1057,21 @@ data structures for each of the properties.
 
 # Background color:
 $pars_args_for{backColors} = 'int backColors()';
-$set_code_for{backColors} = add_line_numbering q{
+$set_code_for{backColors} = pp_line_numbers(__LINE__, q{
 				/* cast the integer as a Colors type (actually an int) */
 				my->set_backColor(widget_handle, (Color)$backColors());
-};
+});
 
 # Clipping rectangle:
 $pars_args_for{clipRects} = 'int clipLeft(); int clipBottom(); int clipRight(); int clipTop()';
 $init_args_for{clipRects} = 'Rect clip_rect';
-$set_code_for{clipRects} = add_line_numbering q{
+$set_code_for{clipRects} = pp_line_numbers(__LINE__, q{
 				clip_rect.left = $clipLeft();
 				clip_rect.bottom = $clipBottom();
 				clip_rect.right = $clipRight();
 				clip_rect.top = $clipTop();
 				my->set_clipRect(widget_handle, clip_rect);
-};
+});
 
 # These do not need any special args, and the default generated code will
 # work just fine:
@@ -1093,22 +1085,22 @@ $pars_args_for{rop2s} = 'int rop2s()';
 # send that and the length to the line_pattern function.
 $pars_args_for{linePatterns} = 'byte linePatterns(patlen)';
 $init_args_for{linePatterns} = 'SV * pattern';
-$set_code_for{linePatterns} = add_line_numbering q{
+$set_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
 				/* Copy the pattern to a Perl scalar */
 				pattern = newSVpv((unsigned char *)$P(linePatterns), 0);
 				my->set_linePattern(widget_handle, pattern);
-};
+});
 
 # translation; the apricot function for translate uses a different name
 # and takes two arguments instead of one:
 $pars_args_for{translates} = 'int trans_x(); int trans_y()';
 $init_args_for{translates} = 'Point tr';
-$set_code_for{translates} = add_line_numbering q{
+$set_code_for{translates} = pp_line_numbers(__LINE__, q{
 				/* Set tr and then use it to set the translate */
 				tr.x = $trans_x();
 				tr.y = $trans_y();
 				my->set_translate(widget_handle, tr);
-};
+});
 
 # Fill winding works nicely without any alteration:
 $pars_args_for{fillWindings} = 'byte fillWindings()';
@@ -1116,7 +1108,7 @@ $pars_args_for{fillWindings} = 'byte fillWindings()';
 # Fill pattern requires that we pack the pattern into an 8x8 Perl array.
 # Kinda stupid, but oh well, what can we do?
 $pars_args_for{fillPatterns} = 'byte fillPatterns(oct=8)';
-$init_args_for{fillPatterns} = add_line_numbering q{
+$init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 			AV * fill_av = newAV();
 			SV * fill_ref_sv = newRV_noinc((SV*)fill_av);
 			AV * tmp_fill_av;
@@ -1131,8 +1123,8 @@ $init_args_for{fillPatterns} = add_line_numbering q{
 				av_fill(tmp_fill_av, 7);
 				av_store(fill_av, av_i, (SV*)tmp_fill_av);
 			}
-};
-$set_code_for{fillPatterns} = add_line_numbering q{
+});
+$set_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 			/* Copy the fill pattern into the array */
 			for (av_i = 0; av_i < 8; av_i++) {
 				tmp_fill_av = (AV*)*(av_fetch(fill_av, av_i, 1));
@@ -1144,12 +1136,12 @@ $set_code_for{fillPatterns} = add_line_numbering q{
 			
 			/* Set the fill pattern */
 			my->set_fillPattern(widget_handle, fill_ref_sv);
-};
-$cleanup_code_for{fillPatterns} = add_line_numbering q{
+});
+$cleanup_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 		/* I will never return these, so I will unconditionally free their memory */
 		av_undef(fill_av);
 		sv_2mortal(fill_ref_sv);
-};
+});
 
 # Spline precision works well with the default setup:
 $pars_args_for{splinePrecisions} = 'int splinePrecisions()';
@@ -1400,12 +1392,12 @@ pp_def('prima_arcs',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's arc function */
 			my->arc(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
@@ -1501,11 +1493,11 @@ pp_def('prima_bars',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's bar function */
 			my->bar(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
@@ -1582,12 +1574,12 @@ pp_def('prima_chords',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's chord function */
 			my->chord(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
@@ -1687,11 +1679,11 @@ pp_def('prima_clears',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's clear function */
 			my->clear(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 	Doc => q{
 
@@ -1773,12 +1765,12 @@ pp_def('prima_ellipses',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's ellipse function */
 			my->ellipse(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	Doc => q{
@@ -1848,12 +1840,12 @@ pp_def('prima_fill_chords',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's fill_chord function */
 			my->fill_chord(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	Doc => q{
@@ -1922,11 +1914,11 @@ pp_def('prima_fill_ellipses',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's fill_ellipse function */
 			my->fill_ellipse(widget_handle, $x(), $y(), $x_diameter(), $y_diameter());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	Doc => q{
@@ -1986,16 +1978,16 @@ my $code = 	# Begin by declaring the non-autogenerated the variables I will need
 	# Add the auto-generated declaration and initialization code:
 	. initialize_for(@properties)
 	# Continue with my initialization code and the threadloop:
-	. add_line_numbering q[
+	. pp_line_numbers(__LINE__, q[
 		/* Allocate an array of Points outside of the threadloop */
 		n_size = $SIZE(n);
 		INIT_POINT_DATA;
 		
 		/* All set. Start the threadloop with the setters. */
 		threadloop %{
-		]
+		])
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Put the x-y data into the to_plot array. I am attempting
 			 * to handle infs gracefully, and I am simply skipping over
 			 * nan values, treating them just as I would bad values.
@@ -2054,7 +2046,7 @@ my $code = 	# Begin by declaring the non-autogenerated the variables I will need
 		
 		/* Free the memory when done */
 		FREE_POINT_STORAGE;
-	]
+	])
 	. generate_cleanup_code_for(@properties)
 ;
 
@@ -2160,12 +2152,12 @@ pp_def('prima_fill_sectors',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's arc function */
 			my->fill_sector(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	Doc => q{
@@ -2241,11 +2233,11 @@ pp_def('prima_flood_fills',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's flood fill function */
 			my->flood_fill(widget_handle, $x(), $y(), (Color)$color(), $singleborder());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	Doc => q{
@@ -2311,7 +2303,7 @@ pp_def('prima_lines',
 		# properties. It would be nice to skip bad values beforehand, but we
 		# need the widget handle before we can check the points:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Assemble the big number checker */
 			Point p = my->get_size(widget_handle);
 			to_check.height = p.y;
@@ -2327,7 +2319,7 @@ pp_def('prima_lines',
 					, to_check.x2, to_check.y2);
 			}
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	BadCode => 
@@ -2350,7 +2342,7 @@ pp_def('prima_lines',
 		# properties. It would be nice to skip bad values beforehand, but we
 		# need the widget handle before we can check the points:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Assemble the big number checker */
 			Point p = my->get_size(widget_handle);
 			to_check.height = p.y;
@@ -2366,7 +2358,7 @@ pp_def('prima_lines',
 					, to_check.x2, to_check.y2);
 			}
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	HandleBad => 1,
@@ -2422,7 +2414,7 @@ properties, in their correct order.
 #	# auto-generated declaration and initialization code:
 #	  initialize_for(@properties)
 #	# Continue with the threadloop:
-#	. add_line_numbering q{
+#	. pp_line_numbers(__LINE__, q{
 #		threadloop %{
 #			/* Unlike usual, I will not use the setter code. Rather,
 #			 * the is_setting_colors will determine whether or not I
@@ -2439,13 +2431,13 @@ properties, in their correct order.
 #			 */
 #			$color() = (PDL_Long) my->get_pixel(widget_handle, $x(), $y());
 #		%}
-#	},
+#	}),
 #	BadCode =>
 #	# I don't need any extra variables for pixels, so I'll just add the
 #	# auto-generated declaration and initialization code:
 #	  initialize_for(@properties)
 #	# Continue with the threadloop:
-#	. add_line_numbering q{
+#	. pp_line_numbers(__LINE__, q{
 #		threadloop %{
 #			/* Unlike usual, I will not use the setter code. Rather,
 #			 * the is_setting_colors, and the good state for everything, is
@@ -2461,7 +2453,7 @@ properties, in their correct order.
 #			 */
 #			$color() = (PDL_Long) my->get_pixel(widget_handle, $x(), $y());
 #		%}
-#	},
+#	}),
 #	HandleBad => 1,
 #	Doc => q{
 #
@@ -2511,16 +2503,16 @@ $code = 	# Begin by declaring the non-autogenerated variables I will need
 	# Add the auto-generated declaration and initialization code:
 	. initialize_for(@properties)
 	# Continue with my initialization code and the threadloop:
-	. add_line_numbering q[
+	. pp_line_numbers(__LINE__, q[
 		/* Allocate the point data outside of the threadloop */
 		n_size = $SIZE(n);
 		INIT_POINT_DATA;
 		
 		/* All set. Start the threadloop with the setters. */
 		threadloop %{
-		]
+		])
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Make sure that we have the proper point storage for this widget */
 			ENSURE_POINT_STORAGE(polyline, n_size);
 			
@@ -2585,7 +2577,7 @@ $code = 	# Begin by declaring the non-autogenerated variables I will need
 		
 		/* Free the memory when done */
 		FREE_POINT_STORAGE;
-	]
+	])
 	. generate_cleanup_code_for(@properties)
 	;
 
@@ -2692,11 +2684,11 @@ pp_def('prima_rectangles',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's rectangle function */
 			my->rectangle(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	Doc => q{
@@ -2755,12 +2747,12 @@ pp_def('prima_sectors',
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's arc function */
 			my->sector(widget_handle, $x(), $y(), $x_diameter(),
 				$y_diameter(), $start_angle(), $end_angle());
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties),
 
 	Doc => q{
@@ -2859,7 +2851,7 @@ $code = 	q{
 		# Now comes the code that calls the various setters for the various
 		# properties:
 		. generate_setter_code_for(@properties)
-		. add_line_numbering q[
+		. pp_line_numbers(__LINE__, q[
 			/* Figure out the reduced_skip */
 			if ($N_points() > 2) reduced_skip = $skip() % $N_points();
 			
@@ -2930,7 +2922,7 @@ $code = 	q{
 				FREE_POINT_STORAGE;
 			}
 		%}
-	]
+	])
 	. generate_cleanup_code_for(@properties);
 
 ($good_code = $code) =~ s/BADCHECKS//;
