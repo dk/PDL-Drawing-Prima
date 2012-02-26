@@ -4,6 +4,8 @@ use File::Spec;
 my $base_name;
 BEGIN {
 	$base_name = File::Spec->catfile(qw(lib PDL Drawing Prima));
+	# Handle backslashes for Windows paths:
+	$base_name =~ s/\\/\\\\/g;
 }
 use PDL::PP (qw(PDL::Drawing::Prima PDL::Drawing::Prima), $base_name);
 

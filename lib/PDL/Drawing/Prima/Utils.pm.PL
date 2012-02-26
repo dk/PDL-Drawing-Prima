@@ -1,8 +1,14 @@
 use strict;
 use warnings;
 use File::Spec;
-use PDL::PP (qw(PDL::Drawing::Prima::Utils PDL::Drawing::Prima::Utils),
-	File::Spec->catfile(qw(lib PDL Drawing Prima Utils)));
+
+my $path;
+BEGIN {
+	$path = File::Spec->catfile(qw(lib PDL Drawing Prima Utils));
+	# Handle backslashes for Windows paths:
+	$path =~ s/\\/\\\\/g;
+}
+use PDL::PP (qw(PDL::Drawing::Prima::Utils PDL::Drawing::Prima::Utils), $path);
 
 our $VERSION = 0.01;
 pp_setversion($VERSION);

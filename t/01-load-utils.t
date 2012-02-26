@@ -8,4 +8,4 @@ BEGIN {
 }
 use PDL::Drawing::Prima;
 
-diag( "Testing PDL::Drawing::Prima::Utils $PDL::Drawing::Prima::VERSION, Perl $], $^X" );
+diag( "Testing PDL::Drawing::Prima::Utils $PDL::Drawing::Prima::Utils::VERSION, Perl $], $^X" );
