@@ -27,7 +27,7 @@ my $build = Module::Build->new(
 	requires => {
 		# Due to the use of PerlIO, I need at least 5.8:
 		perl					=> '5.8.0',
-		PDL						=> '2.4.10',
+		PDL						=> '2.4.9_014',
 		# working here - after the initial push, I need to relax these and
 		# check the smoke reports for the minimum required version:
 		'ExtUtils::ParseXS'	=> '3.05',

@@ -16,3 +16,5 @@ README.pod
 typemap
 t/00-load-main.t
 t/01-load-utils.t
+META.yml
+META.json
