@@ -10,7 +10,7 @@ BEGIN {
 }
 use PDL::PP (qw(PDL::Drawing::Prima::Utils PDL::Drawing::Prima::Utils), $path);
 
-our $VERSION = 0.01;
+our $VERSION = 0.02;
 pp_setversion($VERSION);
 
 pp_addpm({At=>'Top'},<<'ModuleMaterial');
