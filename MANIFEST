@@ -12,5 +12,7 @@ examples/test_simple.pl
 lib/PDL/Drawing/Prima.pm.PL
 lib/PDL/Drawing/Prima/Utils.pm.PL
 MANIFEST
-README
+README.pod
 typemap
+t/00-load-main.t
+t/01-load-utils.t
