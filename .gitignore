@@ -18,3 +18,4 @@ _build/
 Build
 *.txt
 MYMETA.*
+META.*
