@@ -28,7 +28,10 @@ my $build = Module::Build->new(
 		# Due to the use of PerlIO, I need at least 5.8:
 		perl					=> '5.8.0',
 		PDL						=> '2.4.9_010',
-		'ExtUtils::ParseXS'		=> '3.05',
+		# working here - after the initial push, I need to relax these and
+		# check the smoke reports for the minimum required version:
+		'ExtUtils::ParseXS'	=> '3.05',
+		Prima					=> '1.33',
 	},
 	needs_compiler => 1,
 	PL_files => {
