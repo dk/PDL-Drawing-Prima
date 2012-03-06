@@ -1222,8 +1222,9 @@ sub get_sorted_args_with_defaults {
 	unshift @arg_names, 'handles';
 	
 	# Check that they supplied only allowed parameters:
-	foreach (keys %$given) {
-		croak("Unknown parameter $_") unless $_ ~~ @$arg_names
+	foreach my $parameter (keys %$given) {
+		croak("Unknown parameter $_")
+			unless grep {$_ eq $parameter} @$arg_names
 	}
 	
 	# Create a 0-dim piddle with this object's hande in it:
