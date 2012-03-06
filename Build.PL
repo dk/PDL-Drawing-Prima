@@ -32,6 +32,7 @@ my $build = Module::Build->new(
 		# check the smoke reports for the minimum required version:
 		'ExtUtils::ParseXS'	=> '3.05',
 		Prima					=> '1.33',
+		'Module::Build'		=> '0.38',
 	},
 	needs_compiler => 1,
 	PL_files => {
