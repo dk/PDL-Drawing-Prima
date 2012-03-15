@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use blib;
+;
 use PDL;
 use PDL::NiceSlice;
 use Prima qw(Application);
