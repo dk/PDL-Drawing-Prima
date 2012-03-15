@@ -6,9 +6,10 @@ examples/test-subclass.pl
 examples/test-symbols.pl
 examples/test.pl
 examples/test.ps
-examples/test2.pl
 examples/test4.pl
 examples/test_simple.pl
+examples/Kuramoto.pl
+examples/game-of-life.pl
 lib/PDL/Drawing/Prima.pm.PL
 lib/PDL/Drawing/Prima/Utils.pm.PL
 MANIFEST
