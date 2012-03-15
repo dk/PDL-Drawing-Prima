@@ -24,15 +24,21 @@ my $build = Module::Build->new(
 	module_name => 'PDL::Drawing::Prima',
 	dist_version_from => 'lib/PDL/Drawing/Prima.pm.PL',
 	license  => 'perl',
+	configure_requires => {
+		PDL						=> '2.4.9_014',
+		Prima					=> '1.33',
+		'Module::Build'		=> '0',
+	},
+	build_requires => {
+		# working here - after the initial push, I need to relax these and
+		# check the smoke reports for the minimum required version:
+		'ExtUtils::ParseXS'	=> '3.05',
+	},
 	requires => {
 		# Due to the use of PerlIO, I need at least 5.8:
 		perl					=> '5.8.0',
 		PDL						=> '2.4.9_014',
-		# working here - after the initial push, I need to relax these and
-		# check the smoke reports for the minimum required version:
-		'ExtUtils::ParseXS'	=> '3.05',
 		Prima					=> '1.33',
-		'Module::Build'		=> '0.38',
 	},
 	needs_compiler => 1,
 	PL_files => {
