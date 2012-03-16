@@ -9,7 +9,7 @@ BEGIN {
 }
 use PDL::PP (qw(PDL::Drawing::Prima PDL::Drawing::Prima), $base_name);
 
-our $VERSION = 0.03;
+our $VERSION = "0.02_01";
 pp_setversion($VERSION);
 
 use Carp qw(croak confess);
