@@ -15,6 +15,7 @@ my $version = '0.02_01';
 
 my $build = Module::Build->new(
 	module_name => 'PDL::Drawing::Prima',
+	dist_version_from => 'lib/PDL/Drawing/Prima.pm.PL',
 	dist_version => $version,
 	license  => 'perl',
 	configure_requires => {
