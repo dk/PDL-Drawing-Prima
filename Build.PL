@@ -10,15 +10,11 @@ my $inc = PDL_INCLUDE;
 $inc =~ s/-I//g;
 my @incs = ($inc, @{$Prima::Config::Config{incpaths}});
 
-# At one point I had this, to handle Prima's compiler define statements, but it
-# looks like they're never used and I'm not sure how I can test their
-# correctness. Also, these are for ExtUtils::MakeMaker, not Module::Build, so a
-# suitable translation is required:
-#my %DEFINES=map { my @z = split('=', $_, 2); scalar(@z)?(@z):($_ => 1)} @{$Prima::Config::Config{cdefs}};
-#$hash{CCFLAGS} .= join( ' ' , map { $Prima::Config::Config{cdefflag}.$_.'='.$DEFINES{$_}} keys %DEFINES);
-# Not sure if this is necessary, but it was in PDL::PrimaImage, so I'm including
-# it here in case it helps with, perhaps, OS/2.
-#$hash{OBJECT}="Prima\$(OBJ_EXT)";
+# Extract the version of the library from the .pm.PL file, for the provides
+# section in the meta specification.
+sub extract_version;
+my $version = extract_version();
+print "Found version $version\n";
 
 my $build = Module::Build->new(
 	module_name => 'PDL::Drawing::Prima',
@@ -48,8 +44,36 @@ my $build = Module::Build->new(
 			=> ['lib/PDL/Drawing/Prima/Utils.xs', 'lib/PDL/Drawing/Prima/Utils.pm'],
 	},
 	include_dirs => \@incs,
-#	extra_linker_flags => $PDL::Config{MALLOCDBG}->{libs},
-	
+	meta_merge => {
+		resources => {
+			repository
+				=> 'http://github.com/run4flat/PDL-Drawing-Prima',
+#				=> {
+#					web => 'http://github.com/run4flat/PDL-Drawing-Prima',
+#					url => 'git://github.com/run4flat/PDL-Drawing-Prima.git',
+#					type => 'git',
+#				},
+			bugtracker
+				=> 'http://github.com/run4flat/PDL-Drawing-Prima/issues',
+#				=> {
+#					web => 'http://github.com/run4flat/PDL-Drawing-Prima/issues',
+#				},
+		},
+		provides => {
+			'PDL::Drawing::Prima' => {
+				file => 'lib/PDL/Drawing/Prima.pm.PL',
+				version => $version,
+			},
+			'PDL::Drawing::Prima::Utils' => {
+				file => 'lib/PDL/Drawing/Prima/Utils.pm.PL',
+				version => $version,
+			},
+		},
+		no_index => {
+			file => ['README.pod'],
+			directory => [qw(examples t)],
+		},
+	},
 );
 
 # Find the Prima library for linking:
@@ -64,3 +88,16 @@ if ($^O =~ /MS/ or $^O eq 'cygwin') {
 }
 
 $build->create_build_script;
+
+use File::Spec::Functions;
+sub extract_version {
+	my $filename = catfile qw(lib PDL Drawing Prima.pm.PL);
+	open my $in_fh, '<', $filename;
+	while(<$in_fh>) {
+		if (/^our \$VERSION\s+=\s+([\d_.]+);/) {
+			return $1;
+		}
+	}
+	close $in_fh;
+	die "Unable to extract version number from Prima.pm.PL!";
+}
