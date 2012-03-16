@@ -20,12 +20,14 @@ my $build = Module::Build->new(
 	configure_requires => {
 		PDL						=> '2.4.9_014',
 		Prima					=> '1.33',
+		# working here - I need to check the smoke reports for the minimum
+		# required version:
 		'Module::Build'		=> '0',
 	},
 	build_requires => {
-		# working here - after the initial push, I need to relax these and
-		# check the smoke reports for the minimum required version:
-		'ExtUtils::ParseXS'	=> '3.05',
+		# working here - I need to check the smoke reports for the minimum
+		# required version:
+		'ExtUtils::ParseXS'	=> '0',
 	},
 	requires => {
 		# Due to the use of PerlIO, I need at least 5.8:
@@ -34,12 +36,6 @@ my $build = Module::Build->new(
 		Prima					=> '1.33',
 	},
 	needs_compiler => 1,
-	PL_files => {
-		'lib/PDL/Drawing/Prima.pm.PL'
-			=> ['lib/PDL/Drawing/Prima.xs', 'lib/PDL/Drawing/Prima.pm'],
-		'lib/PDL/Drawing/Prima/Utils.pm.PL'
-			=> ['lib/PDL/Drawing/Prima/Utils.xs', 'lib/PDL/Drawing/Prima/Utils.pm'],
-	},
 	include_dirs => \@incs,
 	meta_merge => {
 		resources => {
@@ -85,16 +81,3 @@ if ($^O =~ /MS/ or $^O eq 'cygwin') {
 }
 
 $build->create_build_script;
-
-use File::Spec::Functions;
-sub extract_version {
-	my $filename = catfile qw(lib PDL Drawing Prima.pm.PL);
-	open my $in_fh, '<', $filename;
-	while(<$in_fh>) {
-		if (/^our \$VERSION\s+=\s+["']?([\d_.]+)["']?;/) {
-			return $1;
-		}
-	}
-	close $in_fh;
-	die "Unable to extract version number from Prima.pm.PL!";
-}

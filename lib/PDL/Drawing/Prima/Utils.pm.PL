@@ -2,19 +2,27 @@ use strict;
 use warnings;
 
 # Invoke PDL::PP
-use File::Spec;
 my $path;
 BEGIN {
-	$path = File::Spec->catfile(qw(lib PDL Drawing Prima Utils));
+	# .PL scripts are sent their filename, sans the .PL part. That's almost what
+	# PDL::PP expects to see, so massage it into the proper form:
+	$path = $ARGV[0];
+	$path =~ s/\.pm//;
+	
 	# Handle backslashes for Windows paths:
 	$path =~ s/\\/\\\\/g;
 }
 use PDL::PP (qw(PDL::Drawing::Prima::Utils PDL::Drawing::Prima::Utils), $path);
 
-# Set the module version from the version stashed in the M::B object:
+# Set the module version from the version stashed in the M::B object. The string
+# passed to pp_setversion must include the quotes to ensure that it is processed
+# as a string from the actual module:
 use Module::Build;
 my $build = Module::Build->current;
-pp_setversion($build->dist_version);
+pp_setversion('"' . $build->dist_version . '"');
+
+# Add the .xs file to the cleanup lists:
+$build->add_to_cleanup("$path.xs");
 
 pp_addpm({At=>'Top'},<<'ModuleMaterial');
 
