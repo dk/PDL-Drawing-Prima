@@ -9,8 +9,10 @@ BEGIN {
 }
 use PDL::PP (qw(PDL::Drawing::Prima PDL::Drawing::Prima), $base_name);
 
-our $VERSION = "0.02_01";
-pp_setversion($VERSION);
+# Set the module version from the version stashed in the M::B object:
+use Module::Build;
+my $build = Module::Build->current;
+pp_setversion($build->dist_version);
 
 use Carp qw(croak confess);
 

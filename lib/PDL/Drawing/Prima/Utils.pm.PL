@@ -1,7 +1,8 @@
 use strict;
 use warnings;
-use File::Spec;
 
+# Invoke PDL::PP
+use File::Spec;
 my $path;
 BEGIN {
 	$path = File::Spec->catfile(qw(lib PDL Drawing Prima Utils));
@@ -10,8 +11,10 @@ BEGIN {
 }
 use PDL::PP (qw(PDL::Drawing::Prima::Utils PDL::Drawing::Prima::Utils), $path);
 
-our $VERSION = 0.02;
-pp_setversion($VERSION);
+# Set the module version from the version stashed in the M::B object:
+use Module::Build;
+my $build = Module::Build->current;
+pp_setversion($build->dist_version);
 
 pp_addpm({At=>'Top'},<<'ModuleMaterial');
 

@@ -10,15 +10,12 @@ my $inc = PDL_INCLUDE;
 $inc =~ s/-I//g;
 my @incs = ($inc, @{$Prima::Config::Config{incpaths}});
 
-# Extract the version of the library from the .pm.PL file, for the provides
-# section in the meta specification.
-sub extract_version;
-my $version = extract_version();
-print "Found version $version\n";
+# Explicitly set the version here; all .pm.PL files will use this:
+my $version = '0.02_01';
 
 my $build = Module::Build->new(
 	module_name => 'PDL::Drawing::Prima',
-	dist_version_from => 'lib/PDL/Drawing/Prima.pm.PL',
+	dist_version => $version,
 	license  => 'perl',
 	configure_requires => {
 		PDL						=> '2.4.9_014',
@@ -94,7 +91,7 @@ sub extract_version {
 	my $filename = catfile qw(lib PDL Drawing Prima.pm.PL);
 	open my $in_fh, '<', $filename;
 	while(<$in_fh>) {
-		if (/^our \$VERSION\s+=\s+([\d_.]+);/) {
+		if (/^our \$VERSION\s+=\s+["']?([\d_.]+)["']?;/) {
 			return $1;
 		}
 	}
