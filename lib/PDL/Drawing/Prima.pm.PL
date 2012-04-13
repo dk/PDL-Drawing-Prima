@@ -1,16 +1,28 @@
 use strict;
 use warnings;
-use File::Spec;
+
+# Invoke PDL::PP
 my $base_name;
 BEGIN {
-	$base_name = File::Spec->catfile(qw(lib PDL Drawing Prima));
+	# .PL scripts are sent their filename, sans the .PL part. That's almost what
+	# PDL::PP expects to see, so massage it into the proper form:
+	$base_name = $ARGV[0];
+	$base_name =~ s/\.pm//;
+	
 	# Handle backslashes for Windows paths:
 	$base_name =~ s/\\/\\\\/g;
 }
 use PDL::PP (qw(PDL::Drawing::Prima PDL::Drawing::Prima), $base_name);
 
-our $VERSION = 0.02;
-pp_setversion($VERSION);
+# Set the module version from the version stashed in the M::B object. The string
+# passed to pp_setversion must include the quotes to ensure that it is processed
+# as a string from the actual module:
+use Module::Build;
+my $build = Module::Build->current;
+pp_setversion('"' . $build->dist_version . '"');
+
+# Add the .xs file to the cleanup lists:
+$build->add_to_cleanup("$base_name.xs");
 
 use Carp qw(croak confess);
 

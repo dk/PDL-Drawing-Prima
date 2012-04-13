@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use blib;
+;
 use PDL;
 use Prima qw(Application);
 
