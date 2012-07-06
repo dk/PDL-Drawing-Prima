@@ -11,7 +11,7 @@ $inc =~ s/-I//g;
 my @incs = ($inc, @{$Prima::Config::Config{incpaths}});
 
 # Explicitly set the version here; all .pm.PL files will use this:
-my $version = '0.04_01';
+my $version = '0.05';
 
 my $build = Module::Build->new(
 	module_name => 'PDL::Drawing::Prima',
@@ -26,9 +26,9 @@ my $build = Module::Build->new(
 		'Module::Build'		=> '0',
 	},
 	build_requires => {
-		# working here - I need to check the smoke reports for the minimum
-		# required version:
-		'ExtUtils::ParseXS'	=> '0',
+		# working here - I need to check the smoke reports to hone in on a
+		# minimum required version:
+		'ExtUtils::ParseXS'	=> '3.0',
 	},
 	requires => {
 		# Due to the use of PerlIO, I need at least 5.8:
