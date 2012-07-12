@@ -34,6 +34,8 @@ my $build = Module::Build->new(
 		# Due to the use of PerlIO, I need at least 5.8:
 		perl					=> '5.8.0',
 		PDL						=> '2.4.10',
+		                       # update to 1.35 when available and remove
+		                       # Windows commentary below
 		Prima					=> '1.33',
 	},
 	needs_compiler => 1,
@@ -73,11 +75,42 @@ my $build = Module::Build->new(
 # Find the Prima library for linking:
 if ($^O =~ /MS/ or $^O eq 'cygwin') {
 	my $path = $Prima::Config::Config{libs};
+	
+	# XXX remove after Prima v1.35 is released
+	if ($path !~ /libPrima/) {
+		warn <<WARNING;
+*************************************************
+Whoah there! There appears to be a linking issue
+with Prima on Windows that requires a
+particularly new version of Prima. At the time of
+this writing (mid-July 2012), that new version is
+only available from the source repository at 
+
+  https://github.com/dk/Prima
+
+If you have cpanm (App::cpanminus), You can
+easily install that latest version from the
+command-line with something like this:
+
+  cpanm http://github.com/dk/Prima/tarball/master
+
+after which you can proceed building this library
+as normal.
+
+I will proceed, but don't be surprised if you run
+into problems!
+*************************************************
+WARNING
+	}
+	
 	# Extract the path. This assumes that the path seperator is a single
 	# character, but otherwise is not system-specific. Since it only applies
 	# to MS and Cygwin, I think it'll be fine:
 	die "Unable to determine the Prima library name\n"
 		unless $path =~ s/.(lib)?Prima\.[^.]+$//;
+	# Note that the -L and -l flags are available through Prima's config module
+	# as $Prima::Config::Config{ldlibpathflag} and
+	# $Prima::Config::Config{ldlibflag}. Consider using those.
 	$build->extra_linker_flags("-L$path", "-lPrima");
 }
 
