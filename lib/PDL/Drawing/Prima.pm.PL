@@ -14,10 +14,6 @@ BEGIN {
 }
 use PDL::PP (qw(PDL::Drawing::Prima PDL::Drawing::Prima), $base_name);
 
-# This file creates the functions for this package's namespace:
-# uncomment if the meta-provides key in Build.PL doesn't work; remove if it does
-#package PDL::Drawing::Prima;
-
 # Set the module version from the version stashed in the M::B object. The string
 # passed to pp_setversion must include the quotes to ensure that it is processed
 # as a string from the actual module:
