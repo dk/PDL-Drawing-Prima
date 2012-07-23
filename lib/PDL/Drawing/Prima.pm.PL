@@ -39,9 +39,8 @@ use Carp 'croak';
 use PDL::Drawing::Prima::Utils;
 
 # working here - use Exporter and set as 'EXPORT_OK' the functions
-# pdl_of_patterns_for and pdl_of_handles_for. Their usage looks like this:
+# pdl_of_patterns_for. Its usage looks like this:
 #  my $patterns = pdl_of_patterns_for($pat1, $pat2, ...);
-#  my $handles  = pdl_of_handles_for($widget1, $widget2, ...);
 
 =head1 NAME
 
@@ -55,11 +54,10 @@ ModuleMaterial
 
 You, gentle reader, are reading this documentation off of CPAN. I know this
 because B<this> paragraph does not show up in the final .pm files that are
-installed on a user's computer. I have gone to great lengths to ensure that
-the CPAN-visible documentation is up-to-date, but it may be incomplete in
-certain circumstances since PDL autogenerates some of its documentation. If
-you have any concerns regarding documentation skew, be sure to check the
-documentation on your local machine.
+installed on a user's computer. The documentation that you see may have a
+few sublte differences from the documentation that you would view on your
+computer using C<podview> or C<perldoc>. If you have any concerns regarding
+documentation skew, be sure to check the documentation on your local machine.
 
 =cut
 
@@ -205,46 +203,22 @@ sub piddle_of_patterns_for {
 
 =head2 piddle_of_handles_for
 
-You can call a single drawing function on multiple widgets and have PDL
-thread over the widgets for you. Why would anyone ever want to do that, you
-ask? The only reason I can imagine is if somebody wanted to create a new
-set of widget skins, in which case you'd want to call the same drawing
-function on various widgets (with various parameters, obviously). Will this
-ever happen in practice? Probably not, but if I can come up with a use case,
-I'm sure somebody else can come up with a different use case, so I've
-implemented it.
-
-When you call C<piddle_of_handles_for>, you get back a PDL_LongLong piddle. The
-values returned are the actual integer values used as the handles to the
-widgets, i.e. they are pointers, which means you B<SHOULD NOT MODIFY THEM>
-or you will almost certainly get a segmentation fault. I believe there is
-a way to mark a piddle as read-only, but I'm not quite sure how to do that.
+THIS FUNCTION IS DEPRECATED AND NOW DIES IF YOU TRY TO USE IT. Performing
+the same PDL drawing operation on different widgets via PDL threading clashes
+makes atomic behavior very difficult, so this functionality has been removed.
+If you think you'd like this behavior back, please let me know.
 
 =cut
 
 sub piddle_of_handles_for {
-	# Make sure they're not being stupid:
-	croak("You must supply at least one widget from which to get a handle")
-		if @_ == 0;
-	
-	# Make sure all of the variables are indeed widgets:
-	foreach(@_) {
-		croak("One or more of your widgets does not seem to be descended from Prima::Drawable")
-			unless blessed($_) and $_->isa('Prima::Drawable');
-	}
-	
-	# Make a piddle large enough to hold the handles:
-	my $to_return = zeroes(longlong, scalar(@_));
-	
-	# put the handles in the piddle:
-	_piddle_of_handles_for(${$to_return->get_dataref}, @_);
-	
-	# Update the piddle and return it:
-	$to_return->upd_data;
-	return $to_return;
+	croak("piddle_of_handles_for has been deprecated");
 }
 
 ModuleMaterial
+
+=begin old_code
+
+This used to be useful.
 
 pp_addxs('', q{
 void
@@ -257,9 +231,11 @@ _piddle_of_handles_for(SV * piddle_SV, ...)
 		for (i = 1; i < items; i++) {
 			piddle[i-1] = (long long) gimme_the_mate(ST(i));
 		}
-
 });
 
+=end old_code
+
+=cut
 
 pp_addpm({At=>'Top'},<<'ModuleMaterial');
 
@@ -723,18 +699,13 @@ to draw lines with different colors, I would write the following Pars:
   Pars => 'int x(n); int y(n); int colors()'
 
 So in the hash below, the property C<colors> is associated with the
-arg string C<int colors()>, and (not-optional, but specially processed)
-C<handles> property is associated with the arg string C<longlong handles()>.
-(longlong is necessary here so that the integer data type is large enough to
-hold 64-bit pointer addresses.)
+arg string C<int colors()>.
 
 =end details
 
 =cut
 
-my %pars_args_for = (colors => 'int colors()'
-	, handles => 'longlong handles()'
-);
+my %pars_args_for = (colors => 'int colors()');
 
 =begin details
 
@@ -759,9 +730,8 @@ properties defined in one place.
 This function creates a string with the low-level PDL function's argument
 list, given a list of properties for the function. This makes it very
 easy to manage long parameter lists, and long parameter lists are nicely
-handled by the in-pm function C<get_sorted_args_with_defaults>. It also
-adds handles to the signature, which is mandatory for each of these
-functions. To expand on the previous example, in this code:
+handled by the in-pm function C<get_sorted_args_with_defaults>. To expand
+on the previous example, in this code:
 
  pp_def('my_func',
         Pars => 'int x(n); int y(n); ' . generate_pars_args_for( 'colors', 'rops'),
@@ -770,7 +740,7 @@ functions. To expand on the previous example, in this code:
 
 pp_def sees a parameter list that looks like this:
 
- 'int x(n); int y(n); longlong handles(); int colors(); int rops()'
+ 'int x(n); int y(n); int colors(); int rops()'
 
 To use this, I will create a list of properties that the to-be-defined
 function takes, and use that together with generate_pars_args_for like
@@ -796,7 +766,7 @@ sub generate_pars_args_for {
 	foreach (@_) {
 		croak("Bad args; should be plural") unless /s$/;
 	}
-	return join('; ', @pars_args_for{'handles', @_});
+	return join('; ', @pars_args_for{@_});
 }
 
 ######################################
@@ -828,9 +798,7 @@ C<%pars_args_for>, which has the same format.
 my %init_args_for = ();
 
 sub generate_init_args_for {
-	my $to_return = "\t\t/* These are declarations needed for the handles
-		 * and some of the optional parameters */
-		 Handle widget_handle;\n";
+	my $to_return = "\t\t/* These are declarations needed for some of the optional parameters */\n";
 		 
 	# Build the list:
 	foreach(@_) {
@@ -902,16 +870,12 @@ sub create_boolean_setters_for {
 	# This is the string I will build up for my return value:
 	my $to_return = "
 		/* The last of the declarations */
-		HV* arg_hash_hv;
 		int ";
 	# Create the variable list (is_setting_colors, is_setting_lineWidths...):
 	$to_return .= join(', ', map {"is_setting_$_"} @_) . ";\n";
 	
 	# Set the variables:
-	$to_return .= "
-		/* Begin initializing the values */
-		arg_hash_hv = (HV*)SvRV(\$COMP(arg_ref_sv));
-";
+	$to_return .= "\n\t\t/* Begin initializing the values */\n";
 	foreach(@_) {
 		$to_return .= "\t\tis_setting_$_ = hv_exists(arg_hash_hv, \"$_\", "
 					. length($_) . ");\n";
@@ -938,6 +902,15 @@ sub initialize_for {
 	my @properties = @_;
 	return '
 		/* BEGIN AUTOGENERATED INITIALIZATION */
+		
+		HV* arg_hash_hv = (HV*)SvRV($COMP(arg_ref_sv));
+		
+		/* get the widget handle */
+		SV ** widget_sv_p = hv_fetch(arg_hash_hv, "widget", 6, 0);
+		if (widget_sv_p == NULL) {
+			croak("INTERNAL ERROR: widget key was not set!");
+		}
+		Handle widget_handle = gimme_the_mate(*(widget_sv_p));
 
 	' . generate_init_args_for(@properties)
 	  . create_boolean_setters_for(@properties) . '
@@ -1019,7 +992,6 @@ sub generating_bad_single_setter_code_for {
 
 sub generate_setter_code_for {
 	return "
-			widget_handle = (Handle)\$handles();
 			/* BEGIN AUTOGENERATED SETTER CHECKS */\n"
 			. join("\n", (map {generate_single_setter_code_for($_)} @_)) . "
 			/* END AUTOGENERATED SETTER CHECKS */\n";
@@ -1079,8 +1051,8 @@ sub extract_properties_from {
 		or croak("Failed to extract the properties from doc string\n$stars\n$doc_string\n$stars");
 
 	# Split the properties by commas and spaces, and also split out the last
-	# "and" in the series; remove the 'handles' argument, too
-	return grep { $_ ne 'handles' } split /(?:,?\s+and|,)\s+/, $prop_string;
+	# "and" in the series
+	return split /(?:,?\s+and|,)\s+/, $prop_string;
 }
 
 ##################################################
@@ -1257,29 +1229,19 @@ sub get_sorted_args_with_defaults {
 	# Default to an empty list:
 	$given = {} unless ref($given) eq 'HASH';
 	
-	# Copy the arg_names array, so I can add 'handles' to it without
-	# effecting the original array:
-	my @arg_names = @$arg_names;
-	unshift @arg_names, 'handles';
-	
 	# Check that they supplied only allowed parameters:
 	foreach my $parameter (keys %$given) {
 		croak("Unknown parameter $_")
 			unless grep {$_ eq $parameter} @$arg_names
 	}
 	
-	# Create a 0-dim piddle with this object's hande in it:
-	my $handle = piddle_of_handles_for($self);
-	
 	# Return the sorted list of supplied or default values
 	my @to_return = ();
-	foreach ('handles', @$arg_names) {
+	foreach (@$arg_names) {
 		# If not specified, return a default property of a zero-dim
-		# piddle. Except for the handles, the value doesn't matter
-		# because it is never used. For handles, the value should revert
-		# to the calling widget's handle:
+		# piddle. Set the value to zero since it is never used.
 		if (not exists $given->{$_}) {
-			push @to_return, ($handle) for (1..$N_args_for{$_});
+			push @to_return, (0) for (1..$N_args_for{$_});
 		}
 		elsif (ref ($given->{$_}) eq 'ARRAY') {
 			# If an array ref, dereference it and make sure the number
@@ -1368,7 +1330,10 @@ sub generate_PMCode_for {
 	# in the correct order:
 	my \@args_with_defs
 		= get_sorted_args_with_defaults(\$self, \\$props_array_name, \\\%args);
-
+	
+	# Add the widget to the set of args
+	\$args{widget} = \$self;
+	
 	# Call the PP'd internal code. Always put the args hash last.
 	eval {
 		PDL::_prima_${func_name}_int(";
@@ -1428,7 +1393,7 @@ my $doc_string = <<'DOC_STRING';
 
 Draws arcs, i.e. incomplete ellipses.
 
-Applicable properties include handles, colors, backColors,
+Applicable properties include colors, backColors,
 lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
 
 The arcs go from the C<start_angle>s to the C<end_angle>s along the
@@ -1516,7 +1481,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws filled rectangles from corners (x1, y1) to (x2, y2).
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates.
 
 =for example
@@ -1595,7 +1560,7 @@ C<y_diameter>. Unlike L</arcs> or L</sectors>, it connects
 the ends of the arc with a straight line. The angles are
 measured in degrees, not radians.
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
 
 =for example
@@ -1685,7 +1650,7 @@ $doc_string = <<'DOC_STRING';
 
 Clears the specified rectangle(s).
 
-Applicable properties include handles, backColors, rop2s, and translates.
+Applicable properties include backColors, rop2s, and translates.
 
 =for example
 
@@ -1764,7 +1729,7 @@ $doc_string = <<'DOC_STRING';
 Draws ellipses centered at C<x>, C<y> with diameters C<x_diameter> and
 C<y_diameter>.
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 linePatterns, lineWidths, rops, rop2s, and translates.
 
 To draw circles, just use the same x- and y-diameter.
@@ -1845,7 +1810,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws filled chords (see L</pdl_chords>).
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates.
 
 Chords are partial elipses that run from C<start_angle> to C<end_angle>
@@ -1914,7 +1879,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws filled ellipses (see L</pdl_ellipses>).
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates. 
 
 =for example
@@ -1992,7 +1957,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws and fills a polygon with (mostly) arbitrary edge vertices.
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 fillPatterns, fillWindings, rops, rop2s, and translates.
 
 NOTE: there is B<no> underscore between C<fill> and C<poly>, which is
@@ -2159,7 +2124,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws filled sectors, i.e. a pie-slices or Pac-Mans.
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates.
 
 More specifically, this draws an arc from C<start_angle> to C<end_angle>
@@ -2255,7 +2220,7 @@ documentation as soon as the item is addressed, and it may be that your
 version of Prima has a work-around for this problem. At any rate, it only
 effects Mac users.
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates.
 
 Note that C<fill_color> is probably B<not> what you think it is. The
@@ -2342,7 +2307,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws a line from (x1, y1) to (x2, y2).
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 lineEnds, lineJoins, linePatterns, lineWidths, rops, rop2s, and translates.
 
 In contrast to polylines, which are supposed to be connected, these
@@ -2523,14 +2488,14 @@ pp_def('prima_lines',
 #
 #=cut
 #
-#}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
+#}. "=pod\n\nApplicable properties include " . join(', ', @properties) . "
 #\n=cut
 #
 #");
 #
 #=pod
 #
-#Applicable properties are likely to include handles, colors, clipRects, and
+#Applicable properties are likely to include colors, clipRects, and
 #translates. However, this list could be
 #out of date or out of order. If you've installed this module on your own
 #machine, the documentation is guaranteed to describe the applicable
@@ -2552,7 +2517,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws a multi-segment line with the given x- and y-coordinates.
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 lineEnds, lineJoins, linePatterns, lineWidths, rops, rop2s, and translates.
 
 This method goes to great lengths to Do What You Mean, which is actually
@@ -2763,7 +2728,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws a rectangle from corner (x1, y1) to corner (x2, y2).
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 linePatterns, lineWidths, rops, rop2s, and translates.
 
 =for example
@@ -2838,7 +2803,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws the outlines of sectors, i.e. a pie-slices or Pac-Mans.
 
-Applicable properties include handles, colors, backColors, clipRects,
+Applicable properties include colors, backColors, clipRects,
 lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
 
 More specifically, this draws an arc from C<start_angle> to C<end_angle>
@@ -2966,7 +2931,7 @@ $doc_string = <<'DOC_STRING';
 
 Draws a wide variety of symbols centered at (x, y).
 
-Applicable properties include handles, colors, backColors, clipRects, fillPatterns,
+Applicable properties include colors, backColors, clipRects, fillPatterns,
 fillWindings, lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
 
 Through various combinations of C<N_points>, C<filled>, and C<skip>, you can
