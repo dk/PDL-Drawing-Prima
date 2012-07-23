@@ -21,9 +21,8 @@ my $build = Module::Build->new(
 	configure_requires => {
 		PDL						=> '2.4.10',
 		Prima					=> '1.33',
-		# working here - I need to check the smoke reports for the minimum
-		# required version:
-		'Module::Build'		=> '0',
+		# meta_merge was added in v 0.28:
+		'Module::Build'		=> 0.28,
 	},
 	build_requires => {
 		# working here - I need to check the smoke reports to hone in on a
