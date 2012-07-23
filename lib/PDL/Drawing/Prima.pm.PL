@@ -119,10 +119,11 @@ Prima API uses singular nouns, I here use plural nouns. A few of the methods
 are only available in this module, mostly added to accomodate the needs of
 L<PDL::Graphics::Prima>, the plotting library built on these bindings.
 
-At the moment, only drawing on displayed widgets is supported. However, I
-believe it is possible to revise these bindings with only a few
-modifications to get them to work on any Prima::Drawable object. Hopefully
-those revisions will happen soon.
+This bindings can be applied to B<any> object whose class is derived from
+L<Prima::Drawable>, including displayed widgets and abstract canvases such
+as L<Prima::PS::Drawable>. If you create your own derived canvas, these
+methods should Just Work. (I wish I could take credit for this, but it's
+really due to the fact that Prima's internals are very well engineered.)
 
 =head1 COORDINATE ORIGIN
 
@@ -1513,7 +1514,7 @@ $doc_string = <<'DOC_STRING';
 
 =for ref
 
-Draws filled rectangle from corner (x1, y1) to (x2, y2).
+Draws filled rectangles from corners (x1, y1) to (x2, y2).
 
 Applicable properties include handles, colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates.
@@ -1760,11 +1761,13 @@ $doc_string = <<'DOC_STRING';
 
 =for ref
 
-Draws an ellipse centered at C<x>, C<y> with diameters C<x_diameter> and
-C<y_diameter>. To draw circles, just use the same x- and y-diameter.
+Draws ellipses centered at C<x>, C<y> with diameters C<x_diameter> and
+C<y_diameter>.
 
 Applicable properties include handles, colors, backColors, clipRects,
 linePatterns, lineWidths, rops, rop2s, and translates.
+
+To draw circles, just use the same x- and y-diameter.
 
 =for example
 
@@ -1840,13 +1843,15 @@ $doc_string = <<'DOC_STRING';
 
 =for ref
 
-Draws an arc from C<start_angle> to C<end_angle> along the ellipse
-centered at C<x>, C<y>, each with their specified diameters. The ends
-are connected with a line and the interior is filled. Use this to draw
-the open-mouth part of a smiley face.
+Draws filled chords (see L</pdl_chords>).
 
 Applicable properties include handles, colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates.
+
+Chords are partial elipses that run from C<start_angle> to C<end_angle>
+along the ellipse centered at C<x>, C<y>, each with their specified diameters.
+The ends are connected with a line and the interior is filled. Use this to
+draw the open-mouth part of a smiley face.
 
 =for example
 
@@ -1907,9 +1912,7 @@ $doc_string = <<'DOC_STRING';
 
 =for ref
 
-Draws a filled ellipse centered at C<x>, C<y>, with diameters
-C<x_diameter> and C<y_diameter>. To draw filled circles, use the same
-value for both diameters.
+Draws filled ellipses (see L</pdl_ellipses>).
 
 Applicable properties include handles, colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates. 
@@ -2154,15 +2157,18 @@ $doc_string = <<'DOC_STRING';
 
 =for ref
 
-Draws an arc from C<start_angle> to C<end_angle> along the ellipse
-centered at C<x>, C<y>, with specified x- and y-diameters. Like
-L</fill_chords>, this command connects the end points of the arc, but
-unlike L</fill_chords>, it does so by drawing two lines, both of which
-also connect to the ellipse's center. This results in shapes that look
-like pie pieces.
+Draws filled sectors, i.e. a pie-slices or Pac-Mans.
 
 Applicable properties include handles, colors, backColors, clipRects,
 fillPatterns, rops, rop2s, and translates.
+
+More specifically, this draws an arc from C<start_angle> to C<end_angle>
+along the ellipse centered at C<x>, C<y>, with specified x- and y-diameters.
+Like L</fill_chords>, this command connects the end points of the arc, but
+unlike L</fill_chords>, it does so by drawing two lines, both of which
+also connect to the ellipse's center. This results in shapes that look
+like pie pieces or pie remnants, depending of whether you're a glass-half-full
+or glass-half-empty sort of person.
 
 =for example
 
@@ -2544,7 +2550,7 @@ $doc_string = <<'DOC_STRING';
 
 =for ref
 
-Draws a multi-segment line on a widget with the given x- and y-coordinates.
+Draws a multi-segment line with the given x- and y-coordinates.
 
 Applicable properties include handles, colors, backColors, clipRects,
 lineEnds, lineJoins, linePatterns, lineWidths, rops, rop2s, and translates.
@@ -2830,13 +2836,18 @@ $doc_string = <<'DOC_STRING';
 
 =for ref
 
-Draws an arc from C<start_angle> to C<end_angle> along the ellipse
-centered at C<x>, C<y>, each with their specified diameters. It also draws
-lines from the center of the ellipse to the edge of the arc, tracing the
-outline of a pie-slice or I<sector>.
+Draws the outlines of sectors, i.e. a pie-slices or Pac-Mans.
 
 Applicable properties include handles, colors, backColors, clipRects,
 lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
+
+More specifically, this draws an arc from C<start_angle> to C<end_angle>
+along the ellipse centered at C<x>, C<y>, with specified x- and y-diameters.
+Like L</fill_chords>, this command connects the end points of the arc, but
+unlike L</fill_chords>, it does so by drawing two lines, both of which
+also connect to the ellipse's center. This results in shapes that look
+like pie pieces or pie remnants, depending of whether you're a glass-half-full
+or glass-half-empty sort of person.
 
 =for example
 
