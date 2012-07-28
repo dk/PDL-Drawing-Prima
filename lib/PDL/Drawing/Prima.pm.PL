@@ -1283,13 +1283,6 @@ in doubt, this function operates stand-alone, so you can copy it into
 a little test script and try calling it with sample parameters to get a
 feel for how it behaves.
 
-working here - I have a few argument checking
-ideas for this function, including
-considering checking that C<$self> is a Prima::Drawable type, but not
-Prima::PS::Drawable. Also, I bet if PDL barfs, it'll point to the line
-in the (generated) pm file, so the pdl function call should probably be
-wrapped in an eval block, and $@ should be post-processed.
-
 =end details
 
 =cut
