@@ -3276,7 +3276,7 @@ including a working Makefile.PL. Thanks Dmitry!
 
 EOD
 
-pp_addhdr(pp_line_numbers(__LINE__, '
+pp_addhdr pp_line_numbers(__LINE__, '
 typdef enum {
 };
 ');
