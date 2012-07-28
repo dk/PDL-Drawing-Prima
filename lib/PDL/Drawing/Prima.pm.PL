@@ -3276,6 +3276,10 @@ including a working Makefile.PL. Thanks Dmitry!
 
 EOD
 
+pp_addhdr(pp_line_numbers(__LINE__, '
+typdef enum {
+};
+');
 
 pp_export_nothing();
 pp_done();
@@ -3289,6 +3293,9 @@ pp_done();
 # working here - this can be removed by properly handling the Doc key in the
 # pp_def function call. When you supply an empty string, no documentation gets
 # generated. That lets me to add my own pod in the PMCode section.
+# However, I can skirt all of this by specifying the PdlDoc key with the
+# exact documentation that I want. This wipes out all automatic documentation
+# generation, but the trade-off might be worth it to avoid this code.
 
 # However, I'm also going to add a 'use Prima' at the top for Windows machines,
 # so I'm going to keep this section, even if I reduce the pod-parsing portion. 
