@@ -259,6 +259,7 @@ in PP.pm, but that appears to be the output behavior.
 =cut
 
 pp_add_boot q{
+	PRIMA_VERSION_BOOTCHECK;
 	/* Initialize the Drawable virtual method table pointer, which is declared
 	 * below and used to detect if the widget supports direct calls using the
 	 * apricot graphics drawing functions. */
