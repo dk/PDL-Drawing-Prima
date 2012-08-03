@@ -39,9 +39,8 @@ use Carp 'croak';
 use PDL::Drawing::Prima::Utils;
 
 # working here - use Exporter and set as 'EXPORT_OK' the functions
-# pdl_of_patterns_for and pdl_of_handles_for. Their usage looks like this:
+# pdl_of_patterns_for. Its usage looks like this:
 #  my $patterns = pdl_of_patterns_for($pat1, $pat2, ...);
-#  my $handles  = pdl_of_handles_for($widget1, $widget2, ...);
 
 =head1 NAME
 
@@ -54,12 +53,11 @@ ModuleMaterial
 =head1 CPAN
 
 You, gentle reader, are reading this documentation off of CPAN. I know this
-because B<this> documentation does not show up in the final .pm files that are
-installed on a user's computer. I have gone to great lengths to ensure that
-the CPAN-visible documentation is up-to-date, but it may be incomplete in
-certain circumstances since PDL autogenerates some of its documentation. If
-you have any concerns regarding documentation skew, be sure to check the
-documentation on your local machine.
+because B<this> paragraph does not show up in the final .pm files that are
+installed on a user's computer. The documentation that you see may have a
+few sublte differences from the documentation that you would view on your
+computer using C<podview> or C<perldoc>. If you have any concerns regarding
+documentation skew, be sure to check the documentation on your local machine.
 
 =cut
 
@@ -119,10 +117,11 @@ Prima API uses singular nouns, I here use plural nouns. A few of the methods
 are only available in this module, mostly added to accomodate the needs of
 L<PDL::Graphics::Prima>, the plotting library built on these bindings.
 
-At the moment, only drawing on displayed widgets is supported. However, I
-believe it is possible to revise these bindings with only a few
-modifications to get them to work on any Prima::Drawable object. Hopefully
-those revisions will happen soon.
+This bindings can be applied to B<any> object whose class is derived from
+L<Prima::Drawable>, including displayed widgets and abstract canvases such
+as L<Prima::PS::Drawable>. If you create your own derived canvas, these
+methods should Just Work. (I wish I could take credit for this, but it's
+really due to the fact that Prima's internals are very well engineered.)
 
 =head1 COORDINATE ORIGIN
 
@@ -204,46 +203,22 @@ sub piddle_of_patterns_for {
 
 =head2 piddle_of_handles_for
 
-You can call a single drawing function on multiple widgets and have PDL
-thread over the widgets for you. Why would anyone ever want to do that, you
-ask? The only reason I can imagine is if somebody wanted to create a new
-set of widget skins, in which case you'd want to call the same drawing
-function on various widgets (with various parameters, obviously). Will this
-ever happen in practice? Probably not, but if I can come up with a use case,
-I'm sure somebody else can come up with a different use case, so I've
-implemented it.
-
-When you call C<piddle_of_handles_for>, you get back a PDL_LongLong piddle. The
-values returned are the actual integer values used as the handles to the
-widgets, i.e. they are pointers, which means you B<SHOULD NOT MODIFY THEM>
-or you will almost certainly get a segmentation fault. I believe there is
-a way to mark a piddle as read-only, but I'm not quite sure how to do that.
+THIS FUNCTION IS DEPRECATED AND NOW DIES IF YOU TRY TO USE IT. Performing
+the same PDL drawing operation on different widgets via PDL threading clashes
+makes atomic behavior very difficult, so this functionality has been removed.
+If you think you'd like this behavior back, please let me know.
 
 =cut
 
 sub piddle_of_handles_for {
-	# Make sure they're not being stupid:
-	croak("You must supply at least one widget from which to get a handle")
-		if @_ == 0;
-	
-	# Make sure all of the variables are indeed widgets:
-	foreach(@_) {
-		croak("One or more of your widgets does not seem to be descended from Prima::Drawable")
-			unless blessed($_) and $_->isa('Prima::Drawable');
-	}
-	
-	# Make a piddle large enough to hold the handles:
-	my $to_return = zeroes(longlong, scalar(@_));
-	
-	# put the handles in the piddle:
-	_piddle_of_handles_for(${$to_return->get_dataref}, @_);
-	
-	# Update the piddle and return it:
-	$to_return->upd_data;
-	return $to_return;
+	croak("piddle_of_handles_for has been deprecated");
 }
 
 ModuleMaterial
+
+=begin old_code
+
+This used to be useful.
 
 pp_addxs('', q{
 void
@@ -256,9 +231,11 @@ _piddle_of_handles_for(SV * piddle_SV, ...)
 		for (i = 1; i < items; i++) {
 			piddle[i-1] = (long long) gimme_the_mate(ST(i));
 		}
-
 });
 
+=end old_code
+
+=cut
 
 pp_addpm({At=>'Top'},<<'ModuleMaterial');
 
@@ -281,12 +258,13 @@ in PP.pm, but that appears to be the output behavior.
 
 =cut
 
-pp_add_boot q{
+pp_add_boot pp_line_numbers(__LINE__, q{
+/*	PRIMA_VERSION_BOOTCHECK;
 	/* Initialize the Drawable virtual method table pointer, which is declared
 	 * below and used to detect if the widget supports direct calls using the
 	 * apricot graphics drawing functions. */
 	CDrawable = (PDrawable_vmt)gimme_the_vmt( "Prima::Drawable");
-};
+});
 
 pp_addhdr(pp_line_numbers(__LINE__ + 1, <<'HEADER'));
 
@@ -302,7 +280,8 @@ pp_addhdr(pp_line_numbers(__LINE__ + 1, <<'HEADER'));
 #include <generic/Drawable.h>
 
 /* The virtual method table for Drawable objects, which I need for the
- * introspection in the POINT methods below */
+ * introspection in the POINT methods below. This is set to the actual
+ * method table pointer in the BOOT section. */
 PDrawable_vmt CDrawable;
 
 /* get_size requires this dummy variable */
@@ -687,15 +666,19 @@ provide as many or as few tweaks to their drawing as they wish, so if
 they want to draw three different polylines with three different line
 styles (as demonstrated in test.pl), they should be able to do this:
 
- $widget->pdl_polylines($xs, $ys, {linePatterns => $patterns});
+ $widget->pdl_polylines($xs, $ys, 
+     linePatterns => $patterns,
+     color => cl::Red
+ );
 
 and it will DWIM. That means that the PP functions have to (1) get all
-the possible preferences in as parameters (preferably piddles), (2) the
-PP functions have to call the appropriate functions from apricot.h
-to do their work, and (3) the PP functions have to package their piddles
-in a form that the apricot.h functions know how to handle. To make
-matters even more complicated, different API functions pay attention to
-different properties, so different ones apply for different functions!
+the possible preferences---both singular and plural varieties---in as
+piddle parameters, (2) the PP functions have to call the appropriate
+functions from the widget handles virtual method table to do their work, and
+(3) the PP functions have to package their piddles in a form that the method
+from the method table knows how to handle. To make matters even more
+complicated, different API functions pay attention to different properties,
+so not every property is allowed for every function!
 
 To deal with all of this, the next 400 or so lines of code create some
 machinery that greatly assists in building the pp_defs that follow. A
@@ -721,18 +704,13 @@ to draw lines with different colors, I would write the following Pars:
   Pars => 'int x(n); int y(n); int colors()'
 
 So in the hash below, the property C<colors> is associated with the
-arg string C<int colors()>, and (not-optional, but specially processed)
-C<handles> property is associated with the arg string C<longlong handles()>.
-(longlong is necessary here so that the integer data type is large enough to
-hold 64-bit pointer addresses.)
+arg string C<int colors()>.
 
 =end details
 
 =cut
 
-my %pars_args_for = (colors => 'int colors()'
-	, handles => 'longlong handles()'
-);
+my %pars_args_for = (colors => 'int colors()');
 
 =begin details
 
@@ -740,8 +718,8 @@ At the moment, I only have the colors property. If you know the Prima
 Drawable API, you'll know I'm missing a lot! This is because I will
 build up a number of structures over this discourse and I would
 like to keep the code and specifications for each property in one place.
-Scroll down to the 'Assembling machinery' portion of this code, about
-175 lines below, and you'll see all the parts for each of the Drawable
+Scroll down to the 'Building the machinery' portion of this code, about
+400 lines below, and you'll see all the parts for each of the Drawable
 properties defined in one place.
 
 =end details
@@ -757,9 +735,8 @@ properties defined in one place.
 This function creates a string with the low-level PDL function's argument
 list, given a list of properties for the function. This makes it very
 easy to manage long parameter lists, and long parameter lists are nicely
-handled by the in-pm function C<get_sorted_args_with_defaults>. It also
-adds handles to the signature, which is mandatory for each of these
-functions. To expand on the previous example, in this code:
+handled by the in-pm function C<get_sorted_args_with_defaults>. To expand
+on the previous example, in this code:
 
  pp_def('my_func',
         Pars => 'int x(n); int y(n); ' . generate_pars_args_for( 'colors', 'rops'),
@@ -768,7 +745,7 @@ functions. To expand on the previous example, in this code:
 
 pp_def sees a parameter list that looks like this:
 
- 'int x(n); int y(n); longlong handles(); int colors(); int rops()'
+ 'int x(n); int y(n); int colors(); int rops()'
 
 To use this, I will create a list of properties that the to-be-defined
 function takes, and use that together with generate_pars_args_for like
@@ -794,7 +771,7 @@ sub generate_pars_args_for {
 	foreach (@_) {
 		croak("Bad args; should be plural") unless /s$/;
 	}
-	return join('; ', @pars_args_for{'handles', @_});
+	return join('; ', @pars_args_for{@_});
 }
 
 ######################################
@@ -803,37 +780,63 @@ sub generate_pars_args_for {
 
 =begin details
 
-As already mentioned, many of the properties that could potentially be
-sent to the drawing apricot.h functions will need a set of local
-variables. Currently, clipRects and linePatterns need special variables
-to do their work, and these variables should be created outside the
-threadloop. (regions, when implemented, may need to use this, too.)
-Functions that do not care about those properties will not need those
-variables, so they should only be included in functions that actually
-use them. generate_init_args_for handles this code generation, taking
-the same array of properties used by generate_pars_args_for. See the
-next section for an example of use.
+In order to determine if properties need to be changed in the middle of the
+threadloop and at the end of the threadloop, we need to keep track of the
+original and the current values of the different properties. By default I
+assume that a copy of the property name with the same type as from the pars
+args works. If this is not the case (such as for clipRects), I need to
+provide values for C<%declare_args_for>. I also provide the simple
+C<%cast_for> table in case the autogenerated code needs a cast to work
+properly.
 
-Note that entries in C<%init_args_for> should be semi-colon seperated,
+Functions that do not care about these properties will not need these
+variables, so they should only be included in functions that actually
+use them. C<generate_property_declarations_for> handles this code
+generation, taking the same array of properties used by 
+C<generate_pars_args_for>. See the next section for an example of use.
+
+Note that entries in C<%declare_args_for> should be semi-colon seperated,
 since they are C declarations, but the last entry should not have a 
 semi-colon. One will be appended. This is to keep consistency with
 C<%pars_args_for>, which has the same format.
+
+For the colors, almost all the auto-generated code goes through cleanly,
+except that I wish to cast the integer values to type Color. To handle this,
+I have the following list as well.
 
 =end details
 
 =cut
 
-my %init_args_for = ();
+# Colors has no special args declaration, but it does have special casting
+my %declare_args_for = ();
+my %cast_for = (colors => '(Color)');
 
-sub generate_init_args_for {
-	my $to_return = "\t\t/* These are declarations needed for the handles
-		 * and some of the optional parameters */
-		 Handle widget_handle;\n";
+# this will be automatically generated from the pars data.
+my %uncast_for = ();
+
+sub generate_property_declarations_for {
+	my $to_return = pp_line_numbers(__LINE__, "\t\t/* Declare the property variables */\n");
 		 
 	# Build the list:
-	foreach(@_) {
-		$to_return .= "\t\t$init_args_for{$_};\n"
-			if exists $init_args_for{$_};
+	for my $property (@_) {
+		if (exists $declare_args_for{$property}) {
+			$to_return .= "\t\t$declare_args_for{$property};\n";
+		}
+		else {
+			# Make sure that the pars args for this property don't have
+			# multiple args:
+			croak("pars_args has multiple values but not init_args for property $property")
+				if $pars_args_for{$property} =~ /;/;
+			# extract the type
+			$pars_args_for{$property} =~ /(\w+)\s+\w+s\(\)/
+				or croak("Unable to extract type for property $property");
+			# All good; cook up the declarations
+			my $type = $1;
+			(my $singular = $property) =~ s/s$//;
+			$to_return .= "\t\t$type orig_$singular, curr_$singular;\n";
+			$uncast_for{$property} = "($type)" if exists $cast_for{$property};
+		}
 	}
 	
 	return $to_return;
@@ -852,67 +855,86 @@ in as an argument to the Perl-level function. If the user specified a value
 for a property, it will be present in the hash. If they did not, it will not
 be there.
 
-So, for each of the graphics properties that the user can supply for a given
-function, I will want to have code in the PP Code section that looks
-something like this:
+For each of the graphics properties that the user can supply for a given
+function, I need code in the PP Code section that looks something like this:
 
- int is_setting_rops;
- is_setting_rop = hv_exists(arg_hash_hv, "rops", 4);
+ /* Set these to zero, in case neither singular nor plural are defined */
+ curr_rop = orig_rop = 0;
+ if (hv_exists(arg_hash_hv, "rops", 4)) {
+     prop_list[n_props++] = rops_prop_id;
+     curr_rop = orig_rop = my->get_rop(widget_handle);
+ }
+ if (hv_exists(arg_hash_hv, "rop", 3)) {
+     orig_rop = my->get_rop(widget_handle);
+     curr_rop = SvIV(*(hv_fetch(arg_hash_hv, "rop", 3, 0)));
+     my->set_rop(widget_handle, curr_rop);
+ }
 
-This code checks if the key "rops" exists in the arg_hash_hv hash (which
-must be passed in to the PP function via OtherPars). The
-return value is a boolean, which I will use in the threadloop. Looking
-up these values once and storing their results will make the resulting
-code much less cluttered, and hopefully faster.
+This code has three important parts. First, it sets both the current and the
+original rop values to zero. If the user didn't pass in any either key,
+these values will pass through the whole loop unchanged. At the end, all of
+the properties are checked to see if their current and original values
+differ and if so their original values are restored. As both the current
+and original values are zero in the case of no associated keys, restoration
+will not be necessary, and will not wastefully be performed.
 
-Here's a function that generates the code for me, based on the supplied
-list of properties. It's a little different from the example above, but
-they basically do the same thing. It, too, uses the same array of
-properties used by generate_pars_args_for. The auto-generated code from
-this function is inserted directly into the Code key in the pp_def
-function call, like so:
+The second important part is the plural key check. If the plural key exists,
+its property id is added to the property list. The property list is consulted
+on each pass through the threadloop and this value indicates that the rop
+value needs to be checked. It also retrieves and stores the original rop
+value. Notice that it stores the original rop value in the current rop value.
+If somehow this is called on empty piddles, the threadloop will never execute
+and then curr_rop will have the same value it had before entering the loop.
+Setting the current to the original value helps prevent mayhem.
 
- my @func_pars = qw(backColor linePattern);
- pp_def('my_func',
-     Pars => 'int arg1(n); ' . generate_pars_args_for(@func_pars),
-     ...
-     Code => q{
-         /* set-up variables I will need throughout the threadloop */
-         int alpha;
-     } . generate_init_args_for(@func_pars)
-       . create_boolean_setters_for(@func_pars)
-     . q{
-         alpha = -1;
-         ... 
-         threadloop %{
-             ...
-         %}
-     },
+The third important part is the singular key check. If the singular key
+exists, the original value is retrieved (as with the plural key). The value
+associated with the singular key is also retrieved and set.
+
+Some of the more complicated properties will need more complex initialization
+code, in which case they will have to provide a value for the
+C<%init_args_for> hash. It should follow the basic form provided above.
 
 =end details
 
 =cut
 
-sub create_boolean_setters_for {
+my %init_args_for = ();
+
+sub generate_property_initializations_for {
 	# Make sure I handle an empty list correctly. I can't imagine
 	# calling this function with an empty list, but let's be safe:
 	return '' unless @_;
+	
 	# This is the string I will build up for my return value:
-	my $to_return = "
-		/* The last of the declarations */
-		HV* arg_hash_hv;
-		int ";
-	# Create the variable list (is_setting_colors, is_setting_lineWidths...):
-	$to_return .= join(', ', map {"is_setting_$_"} @_) . ";\n";
+	my $to_return = "\t\t/* Property initialization code */\n";
 	
 	# Set the variables:
-	$to_return .= "
-		/* Begin initializing the values */
-		arg_hash_hv = (HV*)SvRV(\$COMP(arg_ref_sv));
-";
-	foreach(@_) {
-		$to_return .= "\t\tis_setting_$_ = hv_exists(arg_hash_hv, \"$_\", "
-					. length($_) . ");\n";
+	for my $property (@_) {
+		if (exists $init_args_for{$property}) {
+			$to_return .= $init_args_for{$property};
+		}
+		else {
+			(my $singular = $property) =~ s/s$//;
+			my $sing_length = length($singular);
+			my $plural_length = length($property);
+			my ($cast, $uncast) = ('', '');
+			if (exists $cast_for{$property}) {
+				$cast = $cast_for{$property};
+				$uncast = $uncast_for{$property};
+			}
+			$to_return .= pp_line_numbers(__LINE__, "
+		curr_$singular = orig_$singular = 0;
+		if (hv_exists(arg_hash_hv, \"$property\", $plural_length)) {
+			prop_list[n_props++] = ${property}_prop_id;
+			curr_$singular = orig_$singular = $uncast my->get_$singular(widget_handle);
+		}
+		if (hv_exists(arg_hash_hv, \"$singular\", $sing_length)) {
+			orig_$singular = $uncast my->get_$singular(widget_handle);
+			curr_$singular = SvIV(*(hv_fetch(arg_hash_hv, \"$singular\", $sing_length, 0)));
+			my->set_$singular(widget_handle, $cast curr_$singular);
+		}\n");
+		}
 	}
 	return $to_return;
 }
@@ -934,13 +956,34 @@ the necessary variables, early within the Code section.
 
 sub initialize_for {
 	my @properties = @_;
-	return '
+	return pp_line_numbers(__LINE__, '
 		/* BEGIN AUTOGENERATED INITIALIZATION */
-
-	' . generate_init_args_for(@properties)
-	  . create_boolean_setters_for(@properties) . '
 		
-		/* END AUTOGENERATED INITIZLIATION */
+		HV* arg_hash_hv = (HV*)SvRV($COMP(arg_ref_sv));
+		
+		/* get the widget handle */
+		SV ** widget_sv_p = hv_fetch(arg_hash_hv, "widget", 6, 0);
+		if (widget_sv_p == NULL) {
+			croak("INTERNAL ERROR: widget key was not set!");
+		}
+		Handle widget_handle = gimme_the_mate(*(widget_sv_p));
+		
+		/* array of plural properties to check each iteration. The number
+		 * of properties for any given function cannot exceed the number
+		 * of properties available to all functions, so just allocate
+		 * an array large enough to hold everything, even if most functions
+		 * will never use this much. It canno be more than 20, I imagine. */
+		property_id_t prop_list [NUMBER_OF_PROPERTIES_PLUS_ONE];
+		
+		/* Create a counting variable, and track the number of active
+		 * properties that will change during the threadloop for *this*
+		 * invocation of the function. */
+		int prop_counter, n_props = 0;
+
+	') . generate_property_declarations_for(@properties)
+	  . generate_property_initializations_for(@properties) . '
+		
+		/* END AUTOGENERATED INITIALIZATION */
 	';
 }
 
@@ -952,28 +995,27 @@ my $default_other_pars = 'SV * arg_ref_sv';
 
 =begin details
 
-Each of the setters needs to first check if its call is even necessary
-(using the boolean variables set-up in the previous section),
-and then it needs to call the appropriate setter from apricot.h. This is
-easy but repetitive code, so once again I generate it from the same
-list of arguments as everything else. In what follows, I create a
-function that generates these code fragments for me, or looks them up
-in a hash if they're complicated. Note that the function wraps the
-looked-up code in its own curly-braced block; all you need to write is
-the code itself like the following colors example shows:
+Once in the threadloop, each of the properties needs to be able to check if
+a new value differs from the current value, and effect a change if so. This
+is easy but repetitive code, so once again I generate it from the same list
+of arguments as everything else. In what follows, I create a function that
+generates these code fragments for me, or looks them up in a hash if they're
+complicated. Note that the function wraps the looked-up code in its own
+curly-braced block; all you need to write is the code itself like the
+following colors example shows:
 
 The auto-generated code for this section is inserted directly into the
 Code key in the pp_def function call, within the threadloop, before the
-apricot function for this function is itself called. For example:
+actual drawing function is called. For example:
 
  q[
      ...
      threadloop %{
 		 /* Apply any per-threadloop tweaks */
-         ] . generate_setter_code_for(@func_pars)
+         ] . generate_switch_loop_for(@func_pars)
          . q[
          /* Call the apricot function */
-         my->set_func(args);
+         my->draw_func(args);
      %}
  ]
 
@@ -981,46 +1023,48 @@ apricot function for this function is itself called. For example:
 
 =cut
 
-my %set_code_for = (
-	colors => pp_line_numbers (__LINE__, q{
-				/* cast the integer as a Colors type (which itself is a
-				 * 32-bit int, so maybe this is unnecessary */
-				my->set_color(widget_handle, (Color)$colors());
-	}),
-);
+# Thanks to casting, colors doesn't have any special setting code
+my %set_code_for = ();
 
-sub generate_single_setter_code_for {
+sub generate_switch_case_for {
 	my $property = shift;
 	# Make the singular name from the plural:
 	(my $singular = $property) =~ s/s$//;
-#	# apricot uses underscores and all lowercase instead of CamelCase:
-#	(my $apricot  = $singular) =~ s/([A-Z])/_\l$1/g;
 	# Build the return string:
-	my $to_return = "\t\t\tif (is_setting_$property) {\n";
+	my $to_return = "\t\t\t\t\tcase (${property}_prop_id):\n";
 	if (exists $set_code_for{$property}) {
 		# Insert special handling code:
 		$to_return .= $set_code_for{$property};
 	}
 	else {
 		# Most other properties are direct sets:
-		$to_return .= "\t\t\t\tmy->set_$singular(widget_handle, \$$property());\n";
+		my $cast = $cast_for{$property} || '';
+		$to_return .=
+"						if (curr_$singular != \$$property()) {
+							curr_$singular = \$$property();
+							my->set_$singular(widget_handle, $cast curr_$singular);
+						}\n";
 	}
 	
-	$to_return .= "\t\t\t}";
+	$to_return .= "\t\t\t\t\t\tbreak;";
 }
 
-# working here - I think I need to create a hash like %bad_check_code_for
+# working here - consider creating a hash like %bad_check_code_for
 # to handle per-property bad checking code
 sub generating_bad_single_setter_code_for {
 
 }
 
-sub generate_setter_code_for {
+sub generate_switch_loop_for {
 	return "
-			widget_handle = (Handle)\$handles();
-			/* BEGIN AUTOGENERATED SETTER CHECKS */\n"
-			. join("\n", (map {generate_single_setter_code_for($_)} @_)) . "
-			/* END AUTOGENERATED SETTER CHECKS */\n";
+			/* BEGIN PROPERTY SWITCH LOOP */
+			prop_counter = 0;
+			while(prop_counter < n_props) {
+				switch(prop_list[prop_counter++]) {\n"
+			. join("\n", (map {generate_switch_case_for($_)} @_)) . "
+				}
+			}
+			/* END PROPERTY SWITCH LOOP */\n";
 }
 
 #############################
@@ -1029,15 +1073,15 @@ sub generate_setter_code_for {
 
 =begin details
 
-At least one of the properties allocates memory that must be freed when we're
-done.
+At least one of the properties allocates memory that must be freed when
+we're done. All the properties need to check if their values have changed
+from their originals, and if so they need to be restored.
 
 =end details
 
 =cut
 
-# colors does not need any special cleanup code:
-
+# standard cleanup code works for colors
 my %cleanup_code_for = ();
 
 sub generate_cleanup_code_for {
@@ -1045,13 +1089,50 @@ sub generate_cleanup_code_for {
 		/* BEGIN AUTOGENERATED CLEANUP CODE */
 		
 ';
-	foreach (@_) {
-		$to_return .= $cleanup_code_for{$_} if exists $cleanup_code_for{$_};
+	for my $property (@_) {
+		if (exists $cleanup_code_for{$property}) {
+			$to_return .= $cleanup_code_for{$property};
+		}
+		else {
+			(my $singular = $property) =~ s/s$//;
+			my $cast = $cast_for{$property} || '';
+			$to_return .= "
+		if (curr_$singular != orig_$singular) {
+			my->set_$singular(widget_handle, $cast orig_$singular);
+		}\n";
+		}
 	}
 	return $to_return . '
 		
 		/* END AUTOGENERATED CLEANUP CODE */
 ';
+}
+
+########################################
+# Property extraction from doc strings #
+########################################
+
+=begin details
+
+In an effort to align my CPAN documentation with my actual code, I've decided
+to extract the properties from the doc string itself. This way, the CPAN docs
+and the code will never get out of sync. :-)
+
+=end details
+
+=cut
+
+sub extract_properties_from {
+	my $doc_string = shift;
+	
+	# Find the discussion of properties
+	my $stars = '*' x 20;
+	my ($prop_string) = $doc_string =~ /Applicable properties include ([^.]*)/
+		or croak("Failed to extract the properties from doc string\n$stars\n$doc_string\n$stars");
+
+	# Split the properties by commas and spaces, and also split out the last
+	# "and" in the series
+	return split /(?:,?\s+and|,)\s+/, $prop_string;
 }
 
 ##################################################
@@ -1061,28 +1142,71 @@ sub generate_cleanup_code_for {
 =begin details
 
 Now that I have all of the infrastructure ready, I need to build up the
-data structures for each of the properties.
+data structures for each of the properties. Each property needs an entry in
+C<%pars_args_for>. Optional entries include C<%declare_args_for>,
+C<%cast_for>, C<%init_args_for>, C<%set_code_for>, and C<%cleanup_code_for>.
 
 =end details
 
 =cut
 
-# Background color:
+# Background color: need to handle casting 
 $pars_args_for{backColors} = 'int backColors()';
-$set_code_for{backColors} = pp_line_numbers(__LINE__, q{
-				/* cast the integer as a Colors type (actually an int) */
-				my->set_backColor(widget_handle, (Color)$backColors());
-});
+$cast_for{backColors} = '(Color)';
 
 # Clipping rectangle:
 $pars_args_for{clipRects} = 'int clipLeft(); int clipBottom(); int clipRight(); int clipTop()';
-$init_args_for{clipRects} = 'Rect clip_rect';
+$declare_args_for{clipRects} = 'Rect curr_clipRect, orig_clipRect';
+$init_args_for{clipRects} = pp_line_numbers(__LINE__, q{
+		/* Zero-out current and original clip rects */
+		curr_clipRect.left   = 0;
+		curr_clipRect.right  = 0;
+		curr_clipRect.top    = 0;
+		curr_clipRect.bottom = 0;
+		orig_clipRect = curr_clipRect;
+		if (hv_exists(arg_hash_hv, "clipRects", 9)) {
+			prop_list[n_props++] = clipRects_prop_id;
+			curr_clipRect = orig_clipRect = my->get_clipRect(widget_handle);
+		}
+		if (hv_exists(arg_hash_hv, "clipRect", 8)) {
+			orig_clipRect = my->get_clipRect(widget_handle);
+			
+			/* Get the AV that is the current clipRect */
+			AV * tmp_clipRect_AV = (AV*) (*(hv_fetch(arg_hash_hv, "clipRect", 8, 0)));
+			if (av_len(tmp_clipRect_AV) != 4) {
+				croak("clipRect expects a four-element array reference");
+			}
+			
+			/* Unpack the values in the AV into the current clipRect */
+			curr_clipRect.left   = SvIV(*(av_fetch(tmp_clipRect_AV, 0, 0)));
+			curr_clipRect.bottom = SvIV(*(av_fetch(tmp_clipRect_AV, 1, 0)));
+			curr_clipRect.right  = SvIV(*(av_fetch(tmp_clipRect_AV, 2, 0)));
+			curr_clipRect.top    = SvIV(*(av_fetch(tmp_clipRect_AV, 3, 0)));
+			
+			my->set_clipRect(widget_handle, curr_clipRect);
+		}
+});
 $set_code_for{clipRects} = pp_line_numbers(__LINE__, q{
-				clip_rect.left = $clipLeft();
-				clip_rect.bottom = $clipBottom();
-				clip_rect.right = $clipRight();
-				clip_rect.top = $clipTop();
-				my->set_clipRect(widget_handle, clip_rect);
+				if (	curr_clipRect.left   != $clipLeft()
+					||	curr_clipRect.right  != $clipRight()
+					||	curr_clipRect.top    != $clipTop()
+					||	curr_clipRect.bottom != $clipBottom()
+				) {
+					curr_clipRect.left   = $clipLeft();
+					curr_clipRect.bottom = $clipBottom();
+					curr_clipRect.right  = $clipRight();
+					curr_clipRect.top    = $clipTop();
+					my->set_clipRect(widget_handle, curr_clipRect);
+				}
+});
+$cleanup_code_for{clipRects} = pp_line_numbers(__LINE__, q{
+		if (	curr_clipRect.left   != orig_clipRect.left
+			||	curr_clipRect.right  != orig_clipRect.right
+			||	curr_clipRect.top    != orig_clipRect.top
+			||	curr_clipRect.bottom != orig_clipRect.bottom
+		) {
+			my->set_clipRect(widget_handle, orig_clipRect);
+		}
 });
 
 # These do not need any special args, and the default generated code will
@@ -1096,30 +1220,109 @@ $pars_args_for{rop2s} = 'int rop2s()';
 # line patterns. This code has to cast the byte piddle into a char and
 # send that and the length to the line_pattern function.
 $pars_args_for{linePatterns} = 'byte linePatterns(patlen)';
-$init_args_for{linePatterns} = 'SV * pattern';
+$declare_args_for{linePatterns} = 'SV * tmp_pattern; SV * orig_pattern; SV * curr_pattern';
+$init_args_for{linePatterns} = pp_line_numbers(__LINE__, q{
+		/* Create the original and current as duplicates of each other */
+		orig_pattern = 0;
+		curr_pattern = 0;
+		tmp_pattern  = 0;
+		
+		if (hv_exists(arg_hash_hv, "linePatterns", 12)) {
+			prop_list[n_props++] = linePatterns_prop_id;
+			SV * pattern_to_copy = my->get_linePattern(widget_handle);
+			curr_pattern = newSVsv(pattern_to_copy);
+			orig_pattern = newSVsv(pattern_to_copy);
+		}
+		if (hv_exists(arg_hash_hv, "linePattern", 11)) {
+			SV * pattern_to_copy = my->get_linePattern(widget_handle);
+			if (orig_pattern != 0)
+				sv_setsv(orig_pattern, pattern_to_copy);
+			else
+				orig_pattern = newSVsv(pattern_to_copy);
+			
+			pattern_to_copy = *(hv_fetch(arg_hash_hv, "linePattern", 11, 0));
+			if (curr_pattern != 0)
+				sv_setsv(curr_pattern, pattern_to_copy);
+			else
+				curr_pattern = newSVsv(pattern_to_copy);
+			
+			my->set_linePattern(widget_handle, curr_pattern);
+		}
+		if (orig_pattern != 0) {
+			tmp_pattern = newSV($SIZE(patlen));
+		}
+});
 $set_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
-				/* Copy the pattern to a Perl scalar */
-				pattern = newSVpv((unsigned char *)$P(linePatterns), 0);
-				my->set_linePattern(widget_handle, pattern);
+				sv_setpvn(tmp_pattern, (unsigned char *)$P(linePatterns), $SIZE(patlen));
+				if (sv_cmp(tmp_pattern, curr_pattern) != 0) {
+					sv_setsv(curr_pattern, tmp_pattern);
+					my->set_linePattern(widget_handle, curr_pattern);
+				}
+});
+# cleanup code needs to mortalize/decrement the SV's reference count
+$cleanup_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
+		if (orig_pattern != 0) {
+			if (sv_cmp(orig_pattern, curr_pattern) != 0) {
+				my->set_linePattern(widget_handle, orig_pattern);
+			}
+			
+			/* Ensure that these get cleaned up */
+			sv_2mortal(orig_pattern);
+			sv_2mortal(curr_pattern);
+			sv_2mortal(tmp_pattern);
+		}
 });
 
 # translation; the apricot function for translate uses a different name
 # and takes two arguments instead of one:
 $pars_args_for{translates} = 'int trans_x(); int trans_y()';
-$init_args_for{translates} = 'Point tr';
+$declare_args_for{translates} = 'Point curr_translate, orig_translate';
+$init_args_for{translates} = pp_line_numbers(__LINE__, q{
+		curr_translate.x = curr_translate.y = 0;
+		orig_translate = curr_translate;
+		
+		if (hv_exists(arg_hash_hv, "translates", 10)) {
+			prop_list[n_props++] = translates_prop_id;
+			curr_translate = orig_translate = my->get_translate(widget_handle);
+		}
+		if (hv_exists(arg_hash_hv, "translate", 9)) {
+			orig_translate = my->get_translate(widget_handle);
+			
+			/* Get the AV that is the current clipRect */
+			AV * tmp_tr_AV = (AV*) (*(hv_fetch(arg_hash_hv, "translate", 9, 0)));
+			if (av_len(tmp_tr_AV) != 2) {
+				croak("translate expects a two-element array reference");
+			}
+			
+			/* Unpack the values in the AV into the current translate */
+			curr_translate.x = SvIV(*(av_fetch(tmp_tr_AV, 0, 0)));
+			curr_translate.y = SvIV(*(av_fetch(tmp_tr_AV, 1, 0)));
+			
+			my->set_translate(widget_handle, curr_translate);
+		}
+});
 $set_code_for{translates} = pp_line_numbers(__LINE__, q{
 				/* Set tr and then use it to set the translate */
-				tr.x = $trans_x();
-				tr.y = $trans_y();
-				my->set_translate(widget_handle, tr);
+				if ($trans_x() != curr_translate.x || $trans_y() != curr_translate.y) {
+					curr_translate.x = $trans_x();
+					curr_translate.y = $trans_y();
+					my->set_translate(widget_handle, curr_translate);
+				}
+});
+$cleanup_code_for{translates} = pp_line_numbers(__LINE__, q{
+		if (curr_translate.x != orig_translate.x || curr_translate.y != orig_translate.y) {
+			my->set_translate(widget_handle, orig_translate);
+		}
 });
 
 # Fill winding works nicely without any alteration:
 $pars_args_for{fillWindings} = 'byte fillWindings()';
+$declare_args_for{fillWindings} = 'char orig_fillWinding, curr_fillWinding';
 
 # Fill pattern requires that we pack the pattern into an 8x8 Perl array.
 # Kinda stupid, but oh well, what can we do?
 $pars_args_for{fillPatterns} = 'byte fillPatterns(oct=8)';
+$declare_args_for{fillPatterns} = 'char orig_fillPat[8], curr_fillPat[8], tmp_fillPat[8]';
 $init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 			AV * fill_av = newAV();
 			SV * fill_ref_sv = newRV_noinc((SV*)fill_av);
@@ -1134,7 +1337,32 @@ $init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 				tmp_fill_av = newAV();
 				av_fill(tmp_fill_av, 7);
 				av_store(fill_av, av_i, (SV*)tmp_fill_av);
+				
+				/* clear out the fill patterns */
+				curr_fillPat[av_i] = orig_fillPat[av_i] = tmp_fillPat[av_i] = 0;
 			}
+			
+			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
+				prop_list[n_props++] = fillPatterns_prop_id;
+				
+				/* Unpack the fill pattern from the array ref into the strings */
+				tmp_fill_sv = my->get_fillPattern(widget_handle);
+				tmp_fill_av = (AV*)SvRV(tmp_fill_sv);
+				for (av_i = 0; av_i < 8; av_i++) {
+					AV * second_av = (AV*)*(av_fetch(tmp_fill_av, av_i, 0));
+					for (av_j = 0; av_j < 8; av_j++) {
+						/* working here - check this shifting logic */
+						tmp_fillPat[av_i] |= (SvIV(*(av_fetch(second_av, av_j, 0))) >> av_j);
+					}
+				}
+				
+				Copy(tmp_fillPat, orig_fillPat, 8, char);
+				Copy(tmp_fillPat, curr_fillPat, 8, char);
+			}
+			if (hv_exists(arg_hash_hv, "fillPattern", 11)) {
+				/* working here - bleh */
+			}
+			
 });
 $set_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 			/* Copy the fill pattern into the array */
@@ -1228,29 +1456,19 @@ sub get_sorted_args_with_defaults {
 	# Default to an empty list:
 	$given = {} unless ref($given) eq 'HASH';
 	
-	# Copy the arg_names array, so I can add 'handles' to it without
-	# effecting the original array:
-	my @arg_names = @$arg_names;
-	unshift @arg_names, 'handles';
-	
 	# Check that they supplied only allowed parameters:
 	foreach my $parameter (keys %$given) {
 		croak("Unknown parameter $_")
 			unless grep {$_ eq $parameter} @$arg_names
 	}
 	
-	# Create a 0-dim piddle with this object's hande in it:
-	my $handle = piddle_of_handles_for($self);
-	
 	# Return the sorted list of supplied or default values
 	my @to_return = ();
-	foreach ('handles', @$arg_names) {
+	foreach (@$arg_names) {
 		# If not specified, return a default property of a zero-dim
-		# piddle. Except for the handles, the value doesn't matter
-		# because it is never used. For handles, the value should revert
-		# to the calling widget's handle:
+		# piddle. Set the value to zero since it is never used.
 		if (not exists $given->{$_}) {
-			push @to_return, ($handle) for (1..$N_args_for{$_});
+			push @to_return, (0) for (1..$N_args_for{$_});
 		}
 		elsif (ref ($given->{$_}) eq 'ARRAY') {
 			# If an array ref, dereference it and make sure the number
@@ -1292,13 +1510,6 @@ in doubt, this function operates stand-alone, so you can copy it into
 a little test script and try calling it with sample parameters to get a
 feel for how it behaves.
 
-working here - I have a few argument checking
-ideas for this function, including
-considering checking that C<$self> is a Prima::Drawable type, but not
-Prima::PS::Drawable. Also, I bet if PDL barfs, it'll point to the line
-in the (generated) pm file, so the pdl function call should probably be
-wrapped in an eval block, and $@ should be post-processed.
-
 =end details
 
 =cut
@@ -1339,7 +1550,10 @@ sub generate_PMCode_for {
 	# in the correct order:
 	my \@args_with_defs
 		= get_sorted_args_with_defaults(\$self, \\$props_array_name, \\\%args);
-
+	
+	# Add the widget to the set of args
+	\$args{widget} = \$self;
+	
 	# Call the PP'd internal code. Always put the args hash last.
 	eval {
 		PDL::_prima_${func_name}_int(";
@@ -1361,6 +1575,19 @@ sub generate_PMCode_for {
 	return $to_return;
 }
 
+##############################
+# Build the property id enum #
+##############################
+
+# Note that the location of this matters: it must come before any of the
+# semi-generated functions that follow so that they have access to these
+# enums.
+pp_addhdr pp_line_numbers(__LINE__, '
+	typedef enum {
+'	. join('', map ("\t\t${_}_prop_id,\n", keys %pars_args_for))
+.'		NUMBER_OF_PROPERTIES_PLUS_ONE
+	} property_id_t;
+');
 
 #######################################################################
 #                              Functions                              #
@@ -1384,35 +1611,9 @@ with the on-machine library.
 ##############
 # prima_arcs #
 ##############
+extract_properties_from
 
-my @properties = qw(colors backColors lineEnds linePatterns lineWidths rops rop2s translates);
-pp_def('prima_arcs',
-	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();
-			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
-	OtherPars => $default_other_pars,
-	GenericTypes => ['D'],
-	PMFunc => undef,
-	NoPthread => 1,
-	PMCode => generate_PMCode_for('arcs', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
-	Code => 
-	# I don't need any extra variables for arcs, so I'll just add the
-	# auto-generated declaration and initialization code:
-	  initialize_for(@properties)
-	# Continue with the threadloop:
-	. q[
-		threadloop %{
-		]
-		# Now comes the code that calls the various setters for the various
-		# properties:
-		. generate_setter_code_for(@properties)
-		. pp_line_numbers(__LINE__, q[
-			/* Call apricot's arc function */
-			my->arc(widget_handle, $x(), $y(), $x_diameter(),
-				$y_diameter(), $start_angle(), $end_angle());
-		%}
-	])
-	. generate_cleanup_code_for(@properties),
-	Doc => q{
+my $doc_string = <<'DOC_STRING';
 
 =head2 pdl_arcs
 
@@ -1424,6 +1625,9 @@ pp_def('prima_arcs',
 =for ref
 
 Draws arcs, i.e. incomplete ellipses.
+
+Applicable properties include colors, backColors,
+lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
 
 The arcs go from the C<start_angle>s to the C<end_angle>s along the
 ellipses centered at the C<x>s and C<y>s, with the specified x- and
@@ -1449,10 +1653,9 @@ Here's a simple example:
  $canvas->pdl_arcs($xs, $ys, $dxs
                 , $dys, $th_starts, $th_stops);
 
-If you put that snippet of code in the onPaint method, as
+If you put that snippet of code in the C<onPaint> method, as
 suggested in the synopsis, a completely new set of arcs will get
 redrawn whenever you resize your window.
-
 
 Compare to the Prima method L<Prima::Drawable/arc>. Closely related
 routines include L</pdl_chords> and L</pdl_sectors>. See also
@@ -1465,29 +1668,83 @@ See L<Prima::Drawable/spline> for more information.
 
 =cut
 
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
+DOC_STRING
 
-"
-
+my @properties = extract_properties_from($doc_string);
+pp_def('prima_arcs',
+	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();
+			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
+	OtherPars => $default_other_pars,
+	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
+	PMCode => generate_PMCode_for('arcs', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
+	Code => 
+	# I don't need any extra variables for arcs, so I'll just add the
+	# auto-generated declaration and initialization code:
+	  initialize_for(@properties)
+	# Continue with the threadloop:
+	. q[
+		threadloop %{
+		]
+		# Now comes the code that calls the various setters for the various
+		# properties:
+		. generate_switch_loop_for(@properties)
+		. pp_line_numbers(__LINE__, q[
+			/* Call apricot's arc function */
+			my->arc(widget_handle, $x(), $y(), $x_diameter(),
+				$y_diameter(), $start_angle(), $end_angle());
+		%}
+	])
+	. generate_cleanup_code_for(@properties),
+	Doc => $doc_string
 );
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors,
-lineEnds, linePatterns, lineWidths,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
 
 ##############
 # prima_bars #
 ##############
 
-@properties = qw(colors backColors clipRects fillPatterns rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_bars
+
+  Prima Signature: (widget; x1(); y1(); x2(); y2(); properties)
+
+=for ref
+
+Draws filled rectangles from corners (x1, y1) to (x2, y2).
+
+Applicable properties include colors, backColors, clipRects,
+fillPatterns, rops, rop2s, and translates.
+
+=for example
+
+ # Draw 20 random filled rectangles on $canvas:
+ my $N_bars = 20;
+ my ($x_max, $y_max) = $canvas->size;
+ my $x1s = zeroes($N_bars)->random * $x_max;
+ my $y1s = $x1s->random * $y_max;
+ my $x2s = $x1s + $x1s->random * ($x_max - $x1s);
+ my $y2s = $y1s + $x1s->random * ($y_max - $y1s);
+ my $colors = $x1s->random * 2**24;
+ 
+ # Now that we've generated the data, call the command:
+ $canvas->pdl_bars($x1s, $y1s, $x2s, $y2s
+         , colors => $colors);
+
+If you put that snippet of code in the C<onPaint> method, as
+suggested in the synopsis, a completely new set of filled rectangles
+will get redrawn whenever you resize your window.
+
+Compare to the Prima method L<Prima::Drawable/bar>. See also
+L</pdl_rectangles>, which is the unfilled equivalent, and L</pdl_clears>,
+which is sorta the opposite of this.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_bars',
 	Pars => 'x1(); y1(); x2(); y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
@@ -1505,96 +1762,21 @@ pp_def('prima_bars',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's bar function */
 			my->bar(widget_handle, $x1(), $y1(), $x2(), $y2());
 		%}
 	])
 	. generate_cleanup_code_for(@properties),
-	Doc => q{
-
-=head2 pdl_bars
-
-  Prima Signature: (widget; x1(); y1(); x2(); y2(); properties)
-
-=for ref
-
-Draws filled rectangle from corner (x1, y1) to (x2, y2).
-
-=for example
-
- # Draw 20 random filled rectangles on $canvas:
- my $N_bars = 20;
- my ($x_max, $y_max) = $canvas->size;
- my $x1s = zeroes($N_bars)->random * $x_max;
- my $y1s = $x1s->random * $y_max;
- my $x2s = $x1s + $x1s->random * ($x_max - $x1s);
- my $y2s = $y1s + $x1s->random * ($y_max - $y1s);
- my $colors = $x1s->random * 2**24;
- 
- # Now that we've generated the data, call the command:
- $canvas->pdl_bars($x1s, $y1s, $x2s, $y2s
-         , colors => $colors);
-
-If you put that snippet of code in the onPaint method, as
-suggested in the synopsis, a completely new set of filled rectangles
-will get redrawn whenever you resize your window.
-
-Compare to the Prima method L<Prima::Drawable/bar>. See also
-L</pdl_rectangles>, which is the unfilled equivalent, and L</pdl_clears>,
-which is sorta the opposite of this.
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-fillPatterns,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
-
+	Doc => $doc_string
+);
 
 ################
 # prima_chords #
 ################
-@properties = qw(colors backColors clipRects lineEnds linePatterns lineWidths rops rop2s translates);
-pp_def('prima_chords',
-	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();
-			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
-	OtherPars => $default_other_pars,
-	GenericTypes => ['D'],
-	PMFunc => undef,
-	NoPthread => 1,
-	PMCode => generate_PMCode_for('chords', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
-	Code => 
-	# I don't need any extra variables for chords, so I'll just add the
-	# auto-generated declaration and initialization code:
-	  initialize_for(@properties)
-	# Continue with the threadloop:
-	. q[
-		threadloop %{
-		]
-		# Now comes the code that calls the various setters for the various
-		# properties:
-		. generate_setter_code_for(@properties)
-		. pp_line_numbers(__LINE__, q[
-			/* Call apricot's chord function */
-			my->chord(widget_handle, $x(), $y(), $x_diameter(),
-				$y_diameter(), $start_angle(), $end_angle());
-		%}
-	])
-	. generate_cleanup_code_for(@properties),
-	Doc => q{
+
+$doc_string = <<'DOC_STRING';
 
 =head2 pdl_chords
 
@@ -1610,6 +1792,9 @@ centered at C<x>, C<y>, with their specified diameters C<x_diameter>,
 C<y_diameter>. Unlike L</arcs> or L</sectors>, it connects
 the ends of the arc with a straight line. The angles are
 measured in degrees, not radians.
+
+Applicable properties include colors, backColors, clipRects,
+lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
 
 =for example
 
@@ -1652,37 +1837,19 @@ L<Prima::Drawable/spline>.
 
 =cut
 
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
+DOC_STRING
 
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-lineEnds, linePatterns, lineWidths,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
-
-################
-# prima_clears #
-################
-
-@properties = qw(backColors rop2s translates);
-pp_def('prima_clears',
-	Pars => 'int x1(); int y1(); int x2(); int y2();'
-			. generate_pars_args_for(@properties),
+@properties = extract_properties_from $doc_string;
+pp_def('prima_chords',
+	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();
+			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
-	GenericTypes => ['L'],
+	GenericTypes => ['D'],
 	PMFunc => undef,
 	NoPthread => 1,
-	PMCode => generate_PMCode_for('clears', \@properties, qw(x1 y1 x2 y2)),
+	PMCode => generate_PMCode_for('chords', \@properties, qw(x y x_diameter y_diameter start_angle end_angle)),
 	Code => 
-	# I don't need any extra variables for clears, so I'll just add the
+	# I don't need any extra variables for chords, so I'll just add the
 	# auto-generated declaration and initialization code:
 	  initialize_for(@properties)
 	# Continue with the threadloop:
@@ -1691,14 +1858,22 @@ pp_def('prima_clears',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
-			/* Call apricot's clear function */
-			my->clear(widget_handle, $x1(), $y1(), $x2(), $y2());
+			/* Call apricot's chord function */
+			my->chord(widget_handle, $x(), $y(), $x_diameter(),
+				$y_diameter(), $start_angle(), $end_angle());
 		%}
 	])
 	. generate_cleanup_code_for(@properties),
-	Doc => q{
+	Doc => $doc_string,
+);
+
+################
+# prima_clears #
+################
+
+$doc_string = <<'DOC_STRING';
 
 =head2 pdl_clears
 
@@ -1707,6 +1882,8 @@ pp_def('prima_clears',
 =for ref
 
 Clears the specified rectangle(s).
+
+Applicable properties include backColors, rop2s, and translates.
 
 =for example
 
@@ -1733,20 +1910,35 @@ technically this is meant for erasing, not drawing.
 
 =cut
 
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
+DOC_STRING
 
-");
-
-=pod
-
-Applicable properties are likely to include handles, backColors, rop2s,
-and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+pp_def('prima_clears',
+	Pars => 'int x1(); int y1(); int x2(); int y2();'
+			. generate_pars_args_for(@properties),
+	OtherPars => $default_other_pars,
+	GenericTypes => ['L'],
+	PMFunc => undef,
+	NoPthread => 1,
+	PMCode => generate_PMCode_for('clears', \@properties, qw(x1 y1 x2 y2)),
+	Code => 
+	# I don't need any extra variables for clears, so I'll just add the
+	# auto-generated declaration and initialization code:
+	  initialize_for(@properties)
+	# Continue with the threadloop:
+	. q[
+		threadloop %{
+		]
+		# Now comes the code that calls the various setters for the various
+		# properties:
+		. generate_switch_loop_for(@properties)
+		. pp_line_numbers(__LINE__, q[
+			/* Call apricot's clear function */
+			my->clear(widget_handle, $x1(), $y1(), $x2(), $y2());
+		%}
+	])
+	. generate_cleanup_code_for(@properties),
+	Doc => $doc_string,
+);
 
 ####################
 # prima_draw_texts #
@@ -1757,6 +1949,53 @@ properties, in their correct order.
 ##################
 # prima_ellipses #
 ##################
+
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_ellipses
+
+  Prima Signature: (widget; x(); y(); x_diameter();
+                          y_diameter(); properties)
+
+=for ref
+
+Draws ellipses centered at C<x>, C<y> with diameters C<x_diameter> and
+C<y_diameter>.
+
+Applicable properties include colors, backColors, clipRects,
+linePatterns, lineWidths, rops, rop2s, and translates.
+
+To draw circles, just use the same x- and y-diameter.
+
+=for example
+
+ # Draw increasingly taller ellipses along the center line
+ my $N_ellipses = 10;
+ my ($width, $height) = $canvas->size;
+ # horizontal positions evenly spaced
+ my $x = (sequence($N_ellipses) + 0.5) * $width / $N_ellipses;
+ # Vertically, right in the middle of the window
+ my $y = $height/2;
+ # Use the same x-diameter
+ my $x_diameter = 15;
+ # Increase the y-diameter
+ my $y_diameter = $x->xlinvals(10, $height/1.3);
+ 
+ # Use the pdl_ellipses method to draw!
+ $canvas->pdl_ellipses($x, $y, $x_diameter, $y_diameter, lineWidths => 2);
+
+For this example, if you resize the window, the distance between the ellipses
+and the ellipse heights will adjust automatically.
+
+Compare to the Prima method L<Prima::Drawable/ellipse>. The filled
+equivalent is L</pdl_fill_ellipses>. See also L</pdl_arcs>, L</pdl_chords>,
+and L</pdl_sectors> as well as L</pdl_fill_chords> and
+L</pdl_fill_sectors>. You may also be interested in L<Prima::Drawable/spline>,
+which does not yet have a PDL interface.
+
+=cut
+
+DOC_STRING
 
 @properties = qw(colors backColors clipRects linePatterns lineWidths rops rop2s translates);
 pp_def('prima_ellipses',
@@ -1777,7 +2016,7 @@ pp_def('prima_ellipses',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's ellipse function */
 			my->ellipse(widget_handle, $x(), $y(), $x_diameter(),
@@ -1786,53 +2025,47 @@ pp_def('prima_ellipses',
 	])
 	. generate_cleanup_code_for(@properties),
 
-	Doc => q{
-
-=head2 pdl_ellipses
-
-  Prima Signature: (widget; x(); y(); x_diameter();
-                          y_diameter(); properties)
-
-=for ref
-
-Draws an ellipse centered at C<x>, C<y> with diameters C<x_diameter> and
-C<y_diameter>. To draw circles, just use the same x- and y-diameter.
-
-=for example
-
- working here
-
-Compare to the Prima method L<Prima::Drawable/ellipse>. The filled
-equivalent is L</pdl_fill_ellipses>. See also L</pdl_arcs>, L</pdl_chords>,
-and L</pdl_sectors> as well as L</pdl_fill_chords> and
-L</pdl_fill_sectors>. You may also be interested in L<Prima::Drawable/spline>,
-which does not yet have a PDL interface.
-
-=cut
-
-
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-linePatterns, lineWidths,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 #####################
 # prima_fill_chords #
 #####################
 
-@properties = qw(colors backColors clipRects fillPatterns rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_fill_chords
+
+  Prima Signature: (widget; x(); y(); x_diameter(); y_diameter();
+                          start_angle(); end_angle(); properties)
+
+=for ref
+
+Draws filled chords (see L</pdl_chords>).
+
+Applicable properties include colors, backColors, clipRects,
+fillPatterns, rops, rop2s, and translates.
+
+Chords are partial elipses that run from C<start_angle> to C<end_angle>
+along the ellipse centered at C<x>, C<y>, each with their specified diameters.
+The ends are connected with a line and the interior is filled. Use this to
+draw the open-mouth part of a smiley face.
+
+=for example
+
+ # working here:
+ $canvas->pdl_fill_chords($x, $y, $xd, $yd, $ti, $tf);
+
+Compare to the Prima method L<Prima::Drawable/fill_chord>. The unfilled
+equivalent is L</pdl_chords>. Closely related to L</pdl_fill_ellipses>
+and L</pdl_fill_sectors>. See also L</pdl_arcs>, L</pdl_ellipses>,
+and L</pdl_sectors>.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_fill_chords',
 	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
@@ -1852,7 +2085,7 @@ pp_def('prima_fill_chords',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's fill_chord function */
 			my->fill_chord(widget_handle, $x(), $y(), $x_diameter(),
@@ -1861,53 +2094,59 @@ pp_def('prima_fill_chords',
 	])
 	. generate_cleanup_code_for(@properties),
 
-	Doc => q{
-
-=head2 pdl_fill_chords
-
-  Prima Signature: (widget; x(); y(); x_diameter(); y_diameter();
-                          start_angle(); end_angle(); properties)
-
-=for ref
-
-Draws an arc from C<start_angle> to C<end_angle> along the ellipse
-centered at C<x>, C<y>, each with their specified diameters. The ends
-are connected with a line and the interior is filled. Use this to draw
-the open-mouth part of a smiley face.
-
-=for example
-
- # working here:
- $canvas->pdl_fill_chords($x, $y, $xd, $yd, $ti, $tf);
-
-Compare to the Prima method L<Prima::Drawable/fill_chord>. The unfilled
-equivalent is L</pdl_chords>. Closely related to L</pdl_fill_ellipses>
-and L</pdl_fill_sectors>. See also L</pdl_arcs>, L</pdl_ellipses>,
-and L</pdl_sectors>.
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-fillPatterns,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 #######################
 # prima_fill_ellipses #
 #######################
 
-@properties = qw(colors backColors clipRects fillPatterns rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_fill_ellipses
+
+  Prima Signature: (widget; x(); y(); x_diameter();
+                          y_diameter(); properties)
+
+=for ref
+
+Draws filled ellipses (see L</pdl_ellipses>).
+
+Applicable properties include colors, backColors, clipRects,
+fillPatterns, rops, rop2s, and translates. 
+
+=for example
+
+ # Draw increasingly taller ellipses along the center line
+ my $N_ellipses = 10;
+ my ($width, $height) = $canvas->size;
+ # horizontal positions evenly spaced
+ my $x = (sequence($N_ellipses) + 0.5) * $width / $N_ellipses;
+ # Vertically, right in the middle of the window
+ my $y = $height/2;
+ # Use the same x-diameter
+ my $x_diameter = 15;
+ # Increase the y-diameter
+ my $y_diameter = $x->xlinvals(10, $height/1.3);
+ 
+ # Use the pdl_ellipses method to draw!
+ $canvas->pdl_fill_ellipses($x, $y, $x_diameter, $y_diameter);
+
+If you resize the window the distance between the ellipses
+and the ellipse heights will adjust automatically.
+
+Compare to the Prima method L<Prima::Drawable/fill_ellipse>. The unfilled
+equivalent is L</pdl_ellipses>. Closely related to L</pdl_fill_chords> and
+L</pdl_fill_ellipses>, and L</pdl_fill_sectors>.
+See also L</pdl_arcs>, L</pdl_ellipses>, and L</pdl_sectors>. Also,
+check out L<Prima::Drawable/fill_spline>, which does not yet have
+PDL bindings.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_fill_ellipses',
 	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
@@ -1926,7 +2165,7 @@ pp_def('prima_fill_ellipses',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's fill_ellipse function */
 			my->fill_ellipse(widget_handle, $x(), $y(), $x_diameter(), $y_diameter());
@@ -1934,54 +2173,75 @@ pp_def('prima_fill_ellipses',
 	])
 	. generate_cleanup_code_for(@properties),
 
-	Doc => q{
-
-=head2 pdl_fill_ellipses
-
-  Prima Signature: (widget; x(); y(); x_diameter();
-                          y_diameter(); properties)
-
-=for ref
-
-Draws a filled ellipse centered at C<x>, C<y>, with diameters
-C<x_diameter> and C<y_diameter>. To draw filled circles, use the same
-value for both diameters.
-
-=for example
-
- # working here
- $canvas->pdl_fill_ellipses($x, $y, $xd, $yd);
-
-Compare to the Prima method L<Prima::Drawable/fill_ellipse>. The unfilled
-equivalent is L</pdl_ellipses>. Closely related to L</pdl_fill_chords> and
-L</pdl_fill_ellipses>, and L</pdl_fill_sectors>.
-See also L</pdl_arcs>, L</pdl_ellipses>, and L</pdl_sectors>. Also,
-check out L<Prima::Drawable/fill_spline>, which does not yet have
-PDL bindings.
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-fillPatterns,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 ####################
 # prima_fillpolys #
 ####################
 
-@properties = qw(colors backColors clipRects fillPatterns fillWindings rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_fillpolys
+
+  Prima Signature: (widget; x(n); y(n); properties)
+
+=for ref
+
+Draws and fills a polygon with (mostly) arbitrary edge vertices.
+
+Applicable properties include colors, backColors, clipRects,
+fillPatterns, fillWindings, rops, rop2s, and translates.
+
+NOTE: there is B<no> underscore between C<fill> and C<poly>, which is
+different from the other C<fill> methods!
+
+This is useful for drawing arbitrary filled shapes and for visualizing
+integrals. Splines would be the better choice if you want to draw curves, but
+a PDL interface to splines is not (yet) implemented.
+
+Unlike most of the other methods, this one actually makes a half-hearted
+effort to process bad values. In addition to the IEEE bad values of C<nan>
+and C<inf>, PDL has support for bad values. Unlike in C<pdl_polys>,
+C<pdl_fillpolys> will simply skip any point that is marked as bad, but drawing
+the rest of the polygon. In other words, it reduces the degree of your polygon
+by one. If you sent it four points and one of them was bad, you would get a
+triangle instead of a quadralaters.
+
+Infinities are also handled, though not perfectly. There are a few
+situations where C<pdl_polys> will correctly draw what you mean but
+C<pdl_fillpolys> will not.
+
+Because this skips bad data altogether, if you have too much bad data
+(i.e. fewer than three good points), the routine will simply not draw
+anything. I'm debating if this should croak, or at least give a warning.
+(Of course, a warning to STDOUT is rather silly for a GUI toolkit.)
+
+For example:
+
+=for example
+
+ # Create a poorly sampled sine-wave
+ my ($width, $height) = $canvas->size;
+ my $x = sequence(23)/4;
+ my $y = $x->sin;
+ 
+ # Draw it in such a way that it fits the canvas nicely
+ $canvas->pdl_fillpolys($x * $width / $x->max,
+     ($y + 1) * $height / 2, fillWindings => 1
+ );
+
+Resizing the window will result in a similar rendering that fits the aspect
+ratio of your (resized) window.
+
+Compare to the Prima method L<Prima::Drawable/fillpoly>. See also
+L</pdl_bars> and L<pdl_polylines>.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 my $code = 	# Begin by declaring the non-autogenerated the variables I will need
 	q{
 		DECLARE_POINT_DATA;
@@ -1999,7 +2259,7 @@ my $code = 	# Begin by declaring the non-autogenerated the variables I will need
 		/* All set. Start the threadloop with the setters. */
 		threadloop %{
 		])
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Put the x-y data into the to_plot array. I am attempting
 			 * to handle infs gracefully, and I am simply skipping over
@@ -2079,73 +2339,61 @@ pp_def('prima_fillpolys',
 	Code => $good_code,
 	BadCode => $bad_code,
 	HandleBad => 1,
-	Doc => q{
-
-=head2 pdl_fillpolys
-
-  Prima Signature: (widget; x(n); y(n); properties)
-
-=for ref
-
-Draws and fills a polygon with (mostly) arbitrary edge vertices.
-
-NOTE: there is B<no> underscore between C<fill> and C<poly>, which is
-different from the other C<fill> methods!
-
-This is useful for drawing arbitrary filled shapes and for visualizing
-integrals. Splines would be the better choice if you want to draw curves, but
-a PDL interface to splines is not (yet) implemented.
-
-Unlike most of the other methods, this one actually makes a half-hearted
-effort to process bad values. In addition to the IEEE bad values of C<nan>
-and C<inf>, PDL has support for bad values. Unlike in C<pdl_polys>,
-C<pdl_fillpolys> will simply skip any point that is marked as bad, but drawing
-the rest of the polygon. In other words, it reduces the degree of your polygon
-by one. If you sent it four points and one of them was bad, you would get a
-triangle instead of a quadralaters.
-
-Infinities are also handled, though not perfectly. There are a few
-situations where C<pdl_polys> will correctly draw what you mean but
-C<pdl_fillpolys> will not.
-
-Because this skips bad data altogether, if you have too much bad data
-(i.e. fewer than three good points), the routine will simply not draw
-anything. I'm debating if this should croak, or at least give a warning.
-(Of course, a warning to STDOUT is rather silly for a GUI toolkit.)
-
-For example:
-
-=for example
-
- # working here
- $canvas->pdl_fillpolys($x, $y);
-
-Compare to the Prima method L<Prima::Drawable/fillpoly>. See also
-L</pdl_bars> and L<pdl_polylines>.
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-fillPatterns, fillWindings,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 ######################
 # prima_fill_sectors #
 ######################
 
-@properties = qw(colors backColors clipRects fillPatterns rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_fill_sectors
+
+  Prima Signature: (widget; x(); y(); x_diameter(); y_diameter();
+                          start_angle(); end_angle(); properties)
+
+=for ref
+
+Draws filled sectors, i.e. a pie-slices or Pac-Mans.
+
+Applicable properties include colors, backColors, clipRects,
+fillPatterns, rops, rop2s, and translates.
+
+More specifically, this draws an arc from C<start_angle> to C<end_angle>
+along the ellipse centered at C<x>, C<y>, with specified x- and y-diameters.
+Like L</fill_chords>, this command connects the end points of the arc, but
+unlike L</fill_chords>, it does so by drawing two lines, both of which
+also connect to the ellipse's center. This results in shapes that look
+like pie pieces or pie remnants, depending of whether you're a glass-half-full
+or glass-half-empty sort of person.
+
+=for example
+
+ # Draw a bunch of random arcs on $canvas:
+ my $N_chords = 20;
+ my ($x_max, $y_max) = $canvas->size;
+ my $xs = zeroes($N_chords)->random * $x_max;
+ my $ys = $xs->random * $y_max;
+ my $dxs = $xs->random * $x_max / 4;
+ my $dys = $xs->random * $y_max / 4;
+ my $th_starts = $xs->random * 360;
+ my $th_stops = $xs->random * 360;
+ 
+ # Now that we've generated the data, call the command:
+ $canvas->pdl_fill_sectors($xs, $ys, $dxs
+                , $dys, $th_starts, $th_stops);
+
+Compare to the Prima method L<Prima::Drawable/fill_sector>. The unfilled
+equivalent is L</pdl_sectors>. This is closely related to C</pdl_fill_chords>
+and C</pdl_fill_ellipses>. See also L</pdl_arcs>, L</pdl_chords>, and
+L</pdl_ellipses>.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_fill_sectors',
 	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
@@ -2164,7 +2412,7 @@ pp_def('prima_fill_sectors',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's arc function */
 			my->fill_sector(widget_handle, $x(), $y(), $x_diameter(),
@@ -2173,49 +2421,8 @@ pp_def('prima_fill_sectors',
 	])
 	. generate_cleanup_code_for(@properties),
 
-	Doc => q{
-
-=head2 pdl_fill_sectors
-
-  Prima Signature: (widget; x(); y(); x_diameter(); y_diameter();
-                          start_angle(); end_angle(); properties)
-
-=for ref
-
-Draws an arc from C<start_angle> to C<end_angle> along the ellipse
-centered at C<x>, C<y>, with specified x- and y-diameters. Like
-L</fill_chords>, this command connects the end points of the arc, but
-unlike L</fill_chords>, it does so by drawing two lines, both of which
-also connect to the ellipse's center. This results in shapes that look
-like pie pieces.
-
-=for example
-
- # working here
- $canvas->pdl_fill_sectors($x, $y, $xd, $yd, $th1, $th2);
-
-Compare to the Prima method L<Prima::Drawable/fill_sector>. The unfilled
-equivalent is L</pdl_sectors>. This is closely related to C</pdl_fill_chords>
-and C</pdl_fill_ellipses>. See also L</pdl_arcs>, L</pdl_chords>, and
-L</pdl_ellipses>.
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-fillPatterns,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 ######################
 # prima_fill_splines #
@@ -2227,9 +2434,72 @@ properties, in their correct order.
 # prima_flood_fills #
 #####################
 
-@properties = qw(colors backColors clipRects fillPatterns rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_flood_fills
+
+  Prima Signature: (widget; x(); y(); fill_color();
+                   singleborder(); properties)
+
+=for ref
+
+Fill a contiguous region.
+
+NOTE THIS MAY NOT WORK ON MACS! There seems to be a bug in either Prima or
+in Mac's X-windows library that prevents this function from doing its job as
+described. That means that flood filling is not cross-platform, at least not
+at the moment. This notice will be removed from the latest version of this
+documentation as soon as the item is addressed, and it may be that your
+version of Prima has a work-around for this problem. At any rate, it only
+effects Mac users.
+
+Applicable properties include colors, backColors, clipRects,
+fillPatterns, rops, rop2s, and translates.
+
+Note that C<fill_color> is probably B<not> what you think it is. The
+color of the final fill is determined by your C<colors> property. What,
+then, does C<fill_color> specify? It indicates how Prima is supposed to
+perform the fill. If C<singleborder> is zero, then C<fill_color> is the
+color of the B<boundary> to which Prima is to fill. In other words, if you had
+a bunch of intersecting lines that were all red and you wanted the interior
+of those intersecting lines to be blue, you would say something like
+
+ $widget->pdl_flood_fills($x, $y, cl::Red, 0, colors => cl::Blue);
+
+On the other hand, if C<singleborder> is 1, then the value of C<fill_color>
+tells Prima to replace every contiguous pixel B<of color> C<fill_color> with
+the new color specified by C<colors> (or the current color, if no C<colors>
+piddle is given).
+
+=for example
+
+ # Generate a collection of intersecting
+ # circles and triangles
+ my ($width, $height) = $canvas->size;
+ my $N_items = 20;
+ my $x = random($N_items) * $width;
+ my $y = random($N_items) * $width;
+ $canvas->pdl_ellipses($x, $y, 20, 20, lineWidths => 3);
+ $canvas->pdl_symbols($x, $y, 3, 0, 0, 10, 1, lineWidths => 3);
+ 
+ # Fill the interior of those circle/triangle intersections
+ $canvas->pdl_flood_fills($x, $y, cl::Black, 0);
+
+If you put that snippet of code in the example from the synopsis, you should
+see a number of narrow rectangles intersecting circles, with the interior of
+both shapes filled. Resizing the window will lead to randomly changed
+positions for those space-ship looking things.
+
+Compare to the Prima method L<Prima::Drawable/flood_fill>. See also
+L<pdl_clears> and the various fill-based drawing methods.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_flood_fills',
-	Pars => 'int x(); int y(); int color(); int singleborder(); ' . generate_pars_args_for(@properties),
+	Pars => 'int x(); int y(); int fill_color(); int singleborder(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
 	PMFunc => undef,
@@ -2245,54 +2515,52 @@ pp_def('prima_flood_fills',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
-			/* Call apricot's flood fill function */
-			my->flood_fill(widget_handle, $x(), $y(), (Color)$color(), $singleborder());
+			/* Call the widget's flood fill function */
+			my->flood_fill(widget_handle, $x(), $y(), (Color)$fill_color(), $singleborder());
 		%}
 	])
 	. generate_cleanup_code_for(@properties),
 
-	Doc => q{
-
-=head2 pdl_flood_fills
-
-  Prima Signature: (widget; x(); y(); color();
-                   singleborder(); properties)
-
-=for ref
-
-# working here:
-
-Fills an area of the canvas...
-
-=for example
-
- working here
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-fillPatterns,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 ###############
 # prima_lines #
 ###############
 
-@properties = qw(colors backColors clipRects lineEnds lineJoins linePatterns lineWidths rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_lines
+
+  Prima Signature: (widget; x1(); y1(); x2(); y2(); properties)
+
+=for ref
+
+Draws a line from (x1, y1) to (x2, y2).
+
+Applicable properties include colors, backColors, clipRects,
+lineEnds, lineJoins, linePatterns, lineWidths, rops, rop2s, and translates.
+
+In contrast to polylines, which are supposed to be connected, these
+lines are meant to be independent. Also note that this method does make an
+effort to handle bad values, both the IEEE sort (nan, inf) and the official
+PDL bad values. See L<pdl_polylines> for a discussion of what might constitute
+proper bad value handling.
+
+=for example
+
+ working here
+
+Compare to the Prima methods L<Prima::Drawable/lines> and
+L<Prima::Drawable/lines>. See also L<pdl_polylines>.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_lines',
 	Pars => 'x1(); y1(); x2(); y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
@@ -2315,7 +2583,7 @@ pp_def('prima_lines',
 		# Now comes the code that calls the various setters for the various
 		# properties. It would be nice to skip bad values beforehand, but we
 		# need the widget handle before we can check the points:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Assemble the big number checker */
 			Point p = my->get_size(widget_handle);
@@ -2354,7 +2622,7 @@ pp_def('prima_lines',
 		# Now comes the code that calls the various setters for the various
 		# properties. It would be nice to skip bad values beforehand, but we
 		# need the widget handle before we can check the points:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Assemble the big number checker */
 			Point p = my->get_size(widget_handle);
@@ -2375,40 +2643,8 @@ pp_def('prima_lines',
 	. generate_cleanup_code_for(@properties),
 
 	HandleBad => 1,
-	Doc => q{
-
-=head2 pdl_lines
-
-  Prima Signature: (widget; x1(); y1(); x2(); y2(); properties)
-
-=for ref
-
-Draws a line from (x1, y1) to (x2, y2).
-
-In contrast to polylines, which are supposed to be connected, these
-lines are meant to be independent.
-
-=for example
-
- working here
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-lineEnds, lineJoins, linePatterns, lineWidths,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 ################
 # prima_pixels #
@@ -2485,14 +2721,14 @@ properties, in their correct order.
 #
 #=cut
 #
-#}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
+#}. "=pod\n\nApplicable properties include " . join(', ', @properties) . "
 #\n=cut
 #
 #");
 #
 #=pod
 #
-#Applicable properties are likely to include handles, colors, clipRects, and
+#Applicable properties are likely to include colors, clipRects, and
 #translates. However, this list could be
 #out of date or out of order. If you've installed this module on your own
 #machine, the documentation is guaranteed to describe the applicable
@@ -2504,8 +2740,80 @@ properties, in their correct order.
 # prima_polylines #
 ###################
 
-@properties = qw(colors backColors clipRects lineEnds lineJoins linePatterns
-					lineWidths rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_polylines
+
+  Prima Signature: (widget; x(n); y(n); properties)
+
+=for ref
+
+Draws a multi-segment line with the given x- and y-coordinates.
+
+Applicable properties include colors, backColors, clipRects,
+lineEnds, lineJoins, linePatterns, lineWidths, rops, rop2s, and translates.
+
+This method goes to great lengths to Do What You Mean, which is actually
+harder than you might have expected. This is the backbone for the Lines
+plot type of L<PDL::Graphics::Prima>, so it needs to be able to handle all
+manner of strange input. Here is what happens when you specify strange
+values:
+
+=over
+
+=item IEEE nan or PDL Bad Value
+
+If either of these values are specified in the middle of a line drawing, the
+polyline will completely skip this point and begin drawing a new polyline at
+the next point.
+
+=item both x and y are inf and/or -inf
+
+There is no sensible way of interpreting what it means for both x and y to
+be infinite, so any such point is skipped, just like nan and Bad.
+
+=item either x or y is inf or -inf
+
+If an x value is infinite (but the paired y value is not), a horizontal line
+is drawn from the previous x/y pair out to the edge of a widget; another line
+is drawn from the edge to the next x/y pair. The behavior for an infinite y
+value is similar, except that the line is drawn vertically.
+
+For example, the three points (0, 1), (1, 1), (2, inf), (3, 1), (4, 1) would
+be rendered as a line from (0, 1) to (1, 1), then a vertical line straight
+up from (1, 1) to the upper edge of the widget or clipping rectangle, then
+a vertical line straight down to (3, 1) from the upper edge of the widget or
+clipping rectangle, then a horizontal line from (3, 1) to (4, 1).
+
+=item x and/or y is a large value
+
+If x or y is a large value (say, both x and y are 5e27 when the rest of your
+numbers are of the order of 100), it will not be possible to actually show a
+renderin of a line to that point. However, it is possible to correctly render
+the slope of that point out to the edge of the clipping rectangle. Thus the
+slope of the line from within-clip points to large values is faithfully
+rendered.
+
+=back
+
+Here's an example of how to plot data using C<pdl_polylines> (though you'd
+do better to use L<PDL::Graphics::Prima> to create plots):
+
+=for example
+
+ # Draw a sine curve on the widget:
+ my $x = sequence(200);
+ my $y = ( sin($x / 20) + 1 ) * 50;
+ $canvas->pdl_polylines($x, $y);
+
+Compare to the Prima method L<Prima::Drawable/polyline>. See also L<pdl_lines>
+and L<pdl_fillpolys>.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 $code = 	# Begin by declaring the non-autogenerated variables I will need
 	q{
 		DECLARE_POINT_DATA;
@@ -2524,7 +2832,7 @@ $code = 	# Begin by declaring the non-autogenerated variables I will need
 		/* All set. Start the threadloop with the setters. */
 		threadloop %{
 		])
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Make sure that we have the proper point storage for this widget */
 			ENSURE_POINT_STORAGE(polyline, n_size);
@@ -2612,43 +2920,8 @@ pp_def('prima_polylines',
 	HandleBad => 1,
 	BadCode => $bad_code,
 
-	Doc => q{
-
-=head2 pdl_polylines
-
-  Prima Signature: (widget; x(n); y(n); properties)
-
-=for ref
-
-Draws a multi-segment line on a widget with the given x- and y-coordinates.
-
-This is useful for making line-drawings, such as plotting data.
-
-=for example
-
- # Draw a sine curve on the widget:
- my $x = sequence(200);
- my $y = ( sin($x / 20) + 1 ) * 50;
- $canvas->pdl_polylines($x, $y);
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-lineEnds, lineJoins, linePatterns, lineWidths,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-				color, backColor, linePattern, lineWidth, lineJoin, lineEnd, rop, rop2
-
-=cut
+	Doc => $doc_string,
+);
 
 ####################
 # prima_put_images #
@@ -2678,7 +2951,49 @@ properties, in their correct order.
 # prima_rectangles #
 ####################
 
-@properties = qw(colors backColors clipRects linePatterns lineWidths rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_rectangles
+
+  Prima Signature: (widget; x1(); y1(); x2(); y2(); properties)
+
+=for ref
+
+Draws a rectangle from corner (x1, y1) to corner (x2, y2).
+
+Applicable properties include colors, backColors, clipRects,
+linePatterns, lineWidths, rops, rop2s, and translates.
+
+=for example
+
+ # Draw 20 random rectangles on $canvas:
+ my $N_bars = 20;
+ my ($x_max, $y_max) = $canvas->size;
+ my $x1s = zeroes($N_bars)->random * $x_max;
+ my $y1s = $x1s->random * $y_max;
+ my $x2s = $x1s + $x1s->random * ($x_max - $x1s);
+ my $y2s = $y1s + $x1s->random * ($y_max - $y1s);
+ my $colors = $x1s->random * 2**24;
+ 
+ # Now that we've generated the data, call the command:
+ $canvas->pdl_rectangles($x1s, $y1s, $x2s, $y2s
+         , colors => $colors);
+
+If you put that snippet of code in the C<onPaint> method, as
+suggested in the synopsis, a completely new set of rectangles
+will get redrawn whenever you resize your window.
+
+Compare to the Prima method L<Prima::Drawable/rectangle>. See also
+L</pdl_bars>, which is the filled equivalent, and L</pdl_lines>, which
+draws a line from (x1, y1) to (x2, y2) instead. Also, there is a Prima
+method that does not (yet) have a pdl-based equivalent known as
+L<Prima::Drawable/rects3d>, which draws beveled edges around a rectangle.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_rectangles',
 	Pars => 'int x1(); int y1(); int x2(); int y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
@@ -2696,7 +3011,7 @@ pp_def('prima_rectangles',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's rectangle function */
 			my->rectangle(widget_handle, $x1(), $y1(), $x2(), $y2());
@@ -2704,43 +3019,74 @@ pp_def('prima_rectangles',
 	])
 	. generate_cleanup_code_for(@properties),
 
-	Doc => q{
-
-=head2 pdl_rectangles
-
-  Prima Signature: (widget; x1(); y1(); x2(); y2(); properties)
-
-=for ref
-
-Draws a rectangle from corner (x1, y1) to (x2, y2).
-
-=for example
-
- working here
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-linePatterns, lineWidths,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 #################
 # prima_sectors #
 #################
 
-@properties = qw(colors backColors clipRects lineEnds linePatterns lineWidths rops rop2s translates);
+$doc_string = <<'DOC_STRING';
+
+=head2 pdl_sectors
+
+  Prima Signature: (widget; x(); y(); x_diameter(); y_diameter(); start_angle(); end_angle(); properties)
+
+=for ref
+
+Draws the outlines of sectors, i.e. a pie-slices or Pac-Mans.
+
+Applicable properties include colors, backColors, clipRects,
+lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
+
+More specifically, this draws an arc from C<start_angle> to C<end_angle>
+along the ellipse centered at C<x>, C<y>, with specified x- and y-diameters.
+Like L</fill_chords>, this command connects the end points of the arc, but
+unlike L</fill_chords>, it does so by drawing two lines, both of which
+also connect to the ellipse's center. This results in shapes that look
+like pie pieces or pie remnants, depending of whether you're a glass-half-full
+or glass-half-empty sort of person.
+
+=for example
+
+ # For this example, you will need:
+ use PDL::Char;
+ 
+ # Draw a bunch of random sectors on $canvas:
+ my $N_chords = 20;
+ my ($x_max, $y_max) = $canvas->size;
+ my $xs = zeroes($N_chords)->random * $x_max;
+ my $ys = $xs->random * $y_max;
+ my $dxs = $xs->random * $x_max / 4;
+ my $dys = $xs->random * $y_max / 4;
+ my $th_starts = $xs->random * 360;
+ my $th_stops = $xs->random * 360;
+ 
+ # make a small list of patterns:
+ my $patterns_list = PDL::Char->new(
+          [lp::Solid, lp::Dash, lp::DashDot]);
+ 
+ # Randomly select 20 of those patterns:
+ my $rand_selections = ($xs->random * 3)->byte;
+ use PDL::NiceSlice;
+ my $patterns = $patterns_list($rand_selections)->transpose;
+ 
+ # Now that we've generated the data, call the command:
+ $canvas->pdl_sectors($xs, $ys, $dxs
+                , $dys, $th_starts, $th_stops
+                , linePatterns => $patterns);
+
+Compare to the Prima method L<Prima::Drawable/sector>. The filled equivalent
+is L</pdl_fill_sectors>. There is a whole slew of arc-based drawing methods
+including L</pdl_arcs>, L</pdl_chords>, and L<pdl_ellipses> along with their
+filled equivalents. You may also be interested in L<Prima::Drawable/spline>,
+which does not yet have a PDL interface.
+
+=cut
+
+DOC_STRING
+
+@properties = extract_properties_from($doc_string);
 pp_def('prima_sectors',
 	Pars => 'int x(); int y(); int x_diameter(); int y_diameter();
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
@@ -2759,7 +3105,7 @@ pp_def('prima_sectors',
 		]
 		# Now comes the code that calls the various setters for the various
 		# properties:
-		. generate_setter_code_for(@properties)
+		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Call apricot's arc function */
 			my->sector(widget_handle, $x(), $y(), $x_diameter(),
@@ -2768,41 +3114,8 @@ pp_def('prima_sectors',
 	])
 	. generate_cleanup_code_for(@properties),
 
-	Doc => q{
-
-=head2 pdl_sectors
-
-  Prima Signature: (widget; x(); y(); x_diameter(); y_diameter(); start_angle(); end_angle(); properties)
-
-=for ref
-
-Draws an arc from C<start_angle> to C<end_angle> along the ellipse
-centered at C<x>, C<y>, each with their specified diameters. The
-difference between this command and L<chords> is that this command does
-not connect the ends of the arcs with straight lines but leaves the
-arcs open
-
-=for example
-
- working here
-
-=cut
-
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
-
-");
-
-=pod
-
-Applicable properties are likely to include handles, colors, backColors, clipRects,
-lineEnds, linePatterns, lineWidths,
-rops, rop2s, and translates. However, this list could be
-out of date or out of order. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable
-properties, in their correct order.
-
-=cut
+	Doc => $doc_string,
+);
 
 #################
 # prima_splines #
@@ -2841,121 +3154,7 @@ ModuleMaterial
 # prima_symbols #
 #################
 
-# The code and badcode are nearly identical, so I'll write it once here and
-# do the handful of manipulations below.
-
-@properties = qw(colors backColors clipRects fillPatterns fillWindings lineEnds
-				linePatterns lineWidths rops rop2s translates);
-	# I'll need to allocate the memory for each Symbol drawn:
-$code = 	q{
-		DECLARE_POINT_DATA;
-		int i, j, N_sides, N_steps, reduced_skip;
-		double angle;
-		double TWOPI = 8.0 * atan2(1,1);
-		
-	}
-	# add the auto-generated declaration and initialization code:
-	. initialize_for(@properties)
-	# Continue with the threadloop:
-	. q[
-		INIT_POINT_DATA;
-		threadloop %{
-		]
-		# Now comes the code that calls the various setters for the various
-		# properties:
-		. generate_setter_code_for(@properties)
-		. pp_line_numbers(__LINE__, q[
-			/* Figure out the reduced_skip */
-			if ($N_points() > 2) reduced_skip = $skip() % $N_points();
-			
-			/* Skip bad values */
-			if(is_nan($x()) || is_nan($y()) || is_inf($x()) || is_inf($y())
-				BADCHECKS) {
-				/* do nothing */
-			}
-			else if ($N_points() == 0 || $N_points() == 1) {
-				/* Handle the circle case up-front */
-				if ($filled() == 0) {
-					my->ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
-				}
-				else {
-					my->fill_ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
-				}
-			}
-			else if (reduced_skip == 0
-				/* Handle the zero-skip case next, which draws lines from the
-				 * center to each point */
-					|| $N_points() % 2 == 0 && reduced_skip == $N_points() / 2) {
-				angle = TWOPI * $orientation() / 360.0;
-				N_sides = $N_points();
-				for(i = 0; i < N_sides; ++i) {
-					/* draw lines from the center to each point */
-					my->line(widget_handle, $x(), $y()
-						, $x() + $size() * cos(angle)
-						, $y() + $size() * sin(angle));
-					/* update the angle */
-					angle += TWOPI / N_sides;
-				}
-			}
-			else {
-				/* Look for the least common divisor of reduced_skip and N_points */
-				N_steps = 1;
-				for (i = 2; i <= reduced_skip; ++i)
-					if (reduced_skip % i == 0 && $N_points() % i == 0)
-						N_steps = i;
-				/* Figure out the number of sides we'll be plotting at any
-				 * given moment */
-				N_sides = $N_points() / N_steps + 1;
-				
-				/* Allocate the memory needed for the Symbol */
-				if ($filled() == 0) ENSURE_POINT_STORAGE(polyline, N_sides);
-				else ENSURE_POINT_STORAGE(fillpoly, N_sides);
-				
-				for (j = 0; j < N_steps; j++) {
-					angle = TWOPI * ($orientation() / 360.0 + (double)j / $N_points());
-					/* Calculate the points for the Symbol */
-					for (i = 0; i < N_sides; ++i) {
-						ADD_POINT(polyline, i
-							, $x() + $size() * cos(angle)
-							, $y() + $size() * sin(angle));
-						angle += TWOPI/$N_points() * reduced_skip;
-					}
-					
-					if ($filled() == 0) {
-						/* Draw a non-filled polygon */
-						DRAW_POINTS(polyline, apc_gp_draw_poly, N_sides);
-					}
-					else {
-						/* Draw a filled-in polygon */
-						DRAW_POINTS(fillpoly, apc_gp_fill_poly, N_sides);
-					}
-				}
-				
-				/* Free the memory when done */
-				FREE_POINT_STORAGE;
-			}
-		%}
-	])
-	. generate_cleanup_code_for(@properties);
-
-($good_code = $code) =~ s/BADCHECKS//;
-my $bad_checks = '|| $ISBAD(x()) || $ISBAD(y()) || $ISBAD(N_points())
-					|| $ISBAD(orientation()) || $ISBAD(filled())
-					|| $ISBAD(size()) || $ISBAD(skip())';
-($bad_code = $code) =~ s/BADCHECKS/$bad_checks/;
-
-pp_def('prima_symbols',
-	Pars => 'x(); y(); byte N_points(); orientation(); byte filled(); int size(); byte skip(); '
-				. generate_pars_args_for(@properties),
-	OtherPars => $default_other_pars,
-	GenericTypes => ['D'],
-	PMFunc => undef,
-	NoPthread => 1,
-	PMCode => generate_PMCode_for('symbols', \@properties, qw(x y N_points orientation filled size skip)),
-	Code => $good_code,
-	HandleBad => 1,
-	BadCode => $bad_code,
-	Doc => q{
+$doc_string = <<'DOC_STRING';
 
 =head2 pdl_symbols
 
@@ -2964,6 +3163,9 @@ pp_def('prima_symbols',
 =for ref
 
 Draws a wide variety of symbols centered at (x, y).
+
+Applicable properties include colors, backColors, clipRects, fillPatterns,
+fillWindings, lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
 
 Through various combinations of C<N_points>, C<filled>, and C<skip>, you can
 generate many different regular symbols, including dashes, stars, asterisks,
@@ -3117,20 +3319,123 @@ are bad, the symbol is not drawn at that x/y coordinate.
 
 =cut
 
-}. "=pod\n\nApplicable properties include " . join(', ', 'handles', @properties) . "
-\n=cut
+DOC_STRING
 
-");
+# The code and badcode are nearly identical, so I'll write it once here and
+# do the handful of manipulations below.
 
-=pod
+@properties = extract_properties_from($doc_string);
+	# I'll need to allocate the memory for each Symbol drawn:
+$code = 	q{
+		DECLARE_POINT_DATA;
+		int i, j, N_sides, N_steps, reduced_skip;
+		double angle;
+		double TWOPI = 8.0 * atan2(1,1);
+		
+	}
+	# add the auto-generated declaration and initialization code:
+	. initialize_for(@properties)
+	# Continue with the threadloop:
+	. q[
+		INIT_POINT_DATA;
+		threadloop %{
+		]
+		# Now comes the code that calls the various setters for the various
+		# properties:
+		. generate_switch_loop_for(@properties)
+		. pp_line_numbers(__LINE__, q[
+			/* Figure out the reduced_skip */
+			if ($N_points() > 2) reduced_skip = $skip() % $N_points();
+			
+			/* Skip bad values */
+			if(is_nan($x()) || is_nan($y()) || is_inf($x()) || is_inf($y())
+				BADCHECKS) {
+				/* do nothing */
+			}
+			else if ($N_points() == 0 || $N_points() == 1) {
+				/* Handle the circle case up-front */
+				if ($filled() == 0) {
+					my->ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
+				}
+				else {
+					my->fill_ellipse(widget_handle, $x(), $y(), 2*$size(), 2*$size());
+				}
+			}
+			else if (reduced_skip == 0
+				/* Handle the zero-skip case next, which draws lines from the
+				 * center to each point */
+					|| $N_points() % 2 == 0 && reduced_skip == $N_points() / 2) {
+				angle = TWOPI * $orientation() / 360.0;
+				N_sides = $N_points();
+				for(i = 0; i < N_sides; ++i) {
+					/* draw lines from the center to each point */
+					my->line(widget_handle, $x(), $y()
+						, $x() + $size() * cos(angle)
+						, $y() + $size() * sin(angle));
+					/* update the angle */
+					angle += TWOPI / N_sides;
+				}
+			}
+			else {
+				/* Look for the least common divisor of reduced_skip and N_points */
+				N_steps = 1;
+				for (i = 2; i <= reduced_skip; ++i)
+					if (reduced_skip % i == 0 && $N_points() % i == 0)
+						N_steps = i;
+				/* Figure out the number of sides we'll be plotting at any
+				 * given moment */
+				N_sides = $N_points() / N_steps + 1;
+				
+				/* Allocate the memory needed for the Symbol */
+				if ($filled() == 0) ENSURE_POINT_STORAGE(polyline, N_sides);
+				else ENSURE_POINT_STORAGE(fillpoly, N_sides);
+				
+				for (j = 0; j < N_steps; j++) {
+					angle = TWOPI * ($orientation() / 360.0 + (double)j / $N_points());
+					/* Calculate the points for the Symbol */
+					for (i = 0; i < N_sides; ++i) {
+						ADD_POINT(polyline, i
+							, $x() + $size() * cos(angle)
+							, $y() + $size() * sin(angle));
+						angle += TWOPI/$N_points() * reduced_skip;
+					}
+					
+					if ($filled() == 0) {
+						/* Draw a non-filled polygon */
+						DRAW_POINTS(polyline, apc_gp_draw_poly, N_sides);
+					}
+					else {
+						/* Draw a filled-in polygon */
+						DRAW_POINTS(fillpoly, apc_gp_fill_poly, N_sides);
+					}
+				}
+				
+				/* Free the memory when done */
+				FREE_POINT_STORAGE;
+			}
+		%}
+	])
+	. generate_cleanup_code_for(@properties);
 
-Applicable properties are likely to include colors, backColors, clipRects,
-fillPatterns, fillWindings, lineEnds, linePatterns, lineWidths, rops, rop2s, and translates.
-However, this list could be out of date. If you've installed this module on your own
-machine, the documentation is guaranteed to describe the applicable properties.
+($good_code = $code) =~ s/BADCHECKS//;
+my $bad_checks = '|| $ISBAD(x()) || $ISBAD(y()) || $ISBAD(N_points())
+					|| $ISBAD(orientation()) || $ISBAD(filled())
+					|| $ISBAD(size()) || $ISBAD(skip())';
+($bad_code = $code) =~ s/BADCHECKS/$bad_checks/;
 
-=cut
-
+pp_def('prima_symbols',
+	Pars => 'x(); y(); byte N_points(); orientation(); byte filled(); int size(); byte skip(); '
+				. generate_pars_args_for(@properties),
+	OtherPars => $default_other_pars,
+	GenericTypes => ['D'],
+	PMFunc => undef,
+	NoPthread => 1,
+	PMCode => generate_PMCode_for('symbols', \@properties, qw(x y N_points orientation filled size skip)),
+	Code => $good_code,
+	HandleBad => 1,
+	BadCode => $bad_code,
+	Doc => $doc_string,
+);
 
 pp_addpm({At=>'Bot'},<<'EOD');
 
@@ -3211,7 +3516,6 @@ including a working Makefile.PL. Thanks Dmitry!
 
 EOD
 
-
 pp_export_nothing();
 pp_done();
 
@@ -3224,6 +3528,9 @@ pp_done();
 # working here - this can be removed by properly handling the Doc key in the
 # pp_def function call. When you supply an empty string, no documentation gets
 # generated. That lets me to add my own pod in the PMCode section.
+# However, I can skirt all of this by specifying the PdlDoc key with the
+# exact documentation that I want. This wipes out all automatic documentation
+# generation, but the trade-off might be worth it to avoid this code.
 
 # However, I'm also going to add a 'use Prima' at the top for Windows machines,
 # so I'm going to keep this section, even if I reduce the pod-parsing portion. 
