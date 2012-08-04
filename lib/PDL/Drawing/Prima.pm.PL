@@ -1254,17 +1254,17 @@ $init_args_for{linePatterns} = pp_line_numbers(__LINE__, q{
 		}
 });
 $set_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
-				/* Edge-condition: find any zeros and only copy up to, and
-				 * not including, said zeros. */
-				for (pat_len_to_copy = 0; pat_len_to_copy < $SIZE(patlen); pat_len_to_copy++)
-					if ($linePatterns(patlen => pat_len_to_copy) == 0)
-						break;
-				
-				sv_setpvn(tmp_pattern, (unsigned char *)$P(linePatterns), pat_len_to_copy);
-				if (sv_cmp(tmp_pattern, curr_pattern) != 0) {
-					sv_setsv(curr_pattern, tmp_pattern);
-					my->set_linePattern(widget_handle, curr_pattern);
-				}
+						/* Edge-condition: find any zeros and only copy up to, and
+						 * not including, said zeros. */
+						for (pat_len_to_copy = 0; pat_len_to_copy < $SIZE(patlen); pat_len_to_copy++)
+							if ($linePatterns(patlen => pat_len_to_copy) == 0)
+								break;
+						
+						sv_setpvn(tmp_pattern, (unsigned char *)$P(linePatterns), pat_len_to_copy);
+						if (sv_cmp(tmp_pattern, curr_pattern) != 0) {
+							sv_setsv(curr_pattern, tmp_pattern);
+							my->set_linePattern(widget_handle, curr_pattern);
+						}
 });
 # cleanup code needs to mortalize/decrement the SV's reference count
 $cleanup_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
@@ -1309,12 +1309,14 @@ $init_args_for{translates} = pp_line_numbers(__LINE__, q{
 		}
 });
 $set_code_for{translates} = pp_line_numbers(__LINE__, q{
-				/* Set tr and then use it to set the translate */
-				if ($trans_x() != curr_translate.x || $trans_y() != curr_translate.y) {
-					curr_translate.x = $trans_x();
-					curr_translate.y = $trans_y();
-					my->set_translate(widget_handle, curr_translate);
-				}
+						/* Set tr and then use it to set the translate */
+						if ($trans_x() != curr_translate.x
+							|| $trans_y() != curr_translate.y
+						) {
+							curr_translate.x = $trans_x();
+							curr_translate.y = $trans_y();
+							my->set_translate(widget_handle, curr_translate);
+						}
 });
 $cleanup_code_for{translates} = pp_line_numbers(__LINE__, q{
 		if (curr_translate.x != orig_translate.x || curr_translate.y != orig_translate.y) {
