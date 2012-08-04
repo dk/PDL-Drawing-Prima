@@ -1220,7 +1220,8 @@ $pars_args_for{rop2s} = 'int rop2s()';
 # line patterns. This code has to cast the byte piddle into a char and
 # send that and the length to the line_pattern function.
 $pars_args_for{linePatterns} = 'byte linePatterns(patlen)';
-$declare_args_for{linePatterns} = 'SV * tmp_pattern; SV * orig_pattern; SV * curr_pattern';
+$declare_args_for{linePatterns} = 'SV * tmp_pattern; SV * orig_pattern; SV * curr_pattern;
+				int pat_len_to_copy';
 $init_args_for{linePatterns} = pp_line_numbers(__LINE__, q{
 		/* Create the original and current as duplicates of each other */
 		orig_pattern = 0;
@@ -1253,7 +1254,13 @@ $init_args_for{linePatterns} = pp_line_numbers(__LINE__, q{
 		}
 });
 $set_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
-				sv_setpvn(tmp_pattern, (unsigned char *)$P(linePatterns), $SIZE(patlen));
+				/* Edge-condition: find any zeros and only copy up to, and
+				 * not including, said zeros. */
+				for (pat_len_to_copy = 0; pat_len_to_copy < $SIZE(patlen); pat_len_to_copy++)
+					if ($linePatterns(patlen => pat_len_to_copy) == 0)
+						break;
+				
+				sv_setpvn(tmp_pattern, (unsigned char *)$P(linePatterns), pat_len_to_copy);
 				if (sv_cmp(tmp_pattern, curr_pattern) != 0) {
 					sv_setsv(curr_pattern, tmp_pattern);
 					my->set_linePattern(widget_handle, curr_pattern);
