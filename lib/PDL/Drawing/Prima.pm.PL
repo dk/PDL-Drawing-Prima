@@ -1331,15 +1331,14 @@ $declare_args_for{fillWindings} = 'char orig_fillWinding, curr_fillWinding';
 # Fill pattern requires that we pack the pattern into an 8-element Perl array.
 $pars_args_for{fillPatterns} = 'byte fillPatterns(oct=8)';
 $declare_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-						char orig_fillPat[8], curr_fillPat[8];
+						char curr_fillPat[8];
 						SV * orig_fillSV; SV * singular_fillSV;
 						int fillPat_counter;
 						/* Various AV and SV pointers I'll need */
-						AV * fill_av; AV * tmp_fill_av;
+						AV * fill_av;
 						SV * fill_ref_sv; SV * tmp_fill_sv;
 });
 $init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-	printf("Starting fillPattern initialization\n");
 			/* Array of integer SVs; usually used through its reference (next) */
 			fill_av = newAV();
 			/* Reference to the above array of int SVs, which is passed to
@@ -1357,55 +1356,18 @@ $init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 			/* Ensure there are eight rows */
 			av_fill(fill_av, 7);
 			
-			/* clear out the fill patterns */
-			int av_i, av_j;
-			for (av_i = 0; av_i < 8; av_i++) {
-				curr_fillPat[av_i] = orig_fillPat[av_i] = 0;
+			/* Check the singular and plural properties. */
+			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
+				prop_list[n_props++] = fillPatterns_prop_id;
+				orig_fillSV = singular_fillSV = my->get_fillPattern(widget_handle);
 			}
-			
-		}
-#			/* Unlike with other properties, retrieving the current fill
-#			 * pattern is rather expensive, and I only want to do it once. 
-#			 * If either is specified, this packs and stores the original
-#			 * fill pattern. */
-#			if (hv_exists(arg_hash_hv, "fillPatterns", 12)
-#				|| hv_exists(arg_hash_hv, "fillPattern", 11)
-#			) {
-#				/* Unpack the fill pattern from the array ref into the strings */
-#				tmp_fill_sv = my->get_fillPattern(widget_handle);
-#				tmp_fill_av = (AV*)SvRV(tmp_fill_sv);
-#				for (av_i = 0; av_i < 8; av_i++) {
-#					orig_fillPat[av_i] = SvIV(*(av_fetch(tmp_fill_av, av_i, 0)));
-#				}
-#			}
-#	/* test this: combinations of singular and plural work correctly */
-#			/* This conditional only checks if the plural form is specified,
-#			 * and if so it adds that to the property list. */
-#			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
-#				prop_list[n_props++] = fillPatterns_prop_id;
-#			}
-#
-#			/* For the singular form of the property, I need to apply it to
-#			 * the Drawabel before we get going, and I need to store it in
-#			 * packed form. */
-#			if (hv_exists(arg_hash_hv, "fillPattern", 11)) {
-#	printf("Setting the new fill pattern\n");
-#				/* The easy part: set the widget with the specified fill
-#				 * pattern. This works whether they specified a named
-#				 * constant or an anonymous array. */
-#				tmp_fill_sv = *(hv_fetch(arg_hash_hv, "fillPattern", 11, 0));
-#				my->set_fillPattern(widget_handle, tmp_fill_sv);
-#				
-#				/* The fill pattern may have been an integer constant, or it
-#				 * may have been an array of IVs. I only know how to process
-#				 * the latter, and I can only obtain that from the integer
-#				 * constant by retrieving the fill pattern from the widget. */
-#				if (!SvROK(tmp_fill_sv)) {
-#					tmp_fill_sv = my->get_fillPattern(widget_handle);
-#				}
-#				
-#				/* Now repack that fill pattern. */
-#				
+			if (hv_exists(arg_hash_hv, "fillPattern", 11)) {
+				orig_fillSV = my->get_fillPattern(widget_handle);
+				singular_fillSV = *(hv_fetch(arg_hash_hv, "fillPattern", 11, 0));
+				my->set_fillPattern(widget_handle, singular_fillSV);
+			}
+});
+
 #	if (SvROK(tmp_fill_sv)) printf("It's a referece\n");
 #	switch (SvTYPE(tmp_fill_sv)) {
 #		case SVt_IV: printf("It's an RV or an IV\n"); break;
@@ -1416,43 +1378,8 @@ $init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 #		case SVt_PVHV: printf("It's an HV\n"); break;
 #		case SVt_PVMG: printf("It's magical!\n"); break;
 #	}
-#	printf("Dereferencing the AV\n");
-#				tmp_fill_av = (AV*)tmp_fill_sv;
-#	switch (SvTYPE(tmp_fill_av)) {
-#		case SVt_IV: printf("It's an RV or an IV\n"); break;
-#		case SVt_NV: printf("It's an NV\n"); break;
-#		case SVt_PV: printf("It's a PV\n"); break;
-#		case SVt_PVAV: printf("It's an AV\n"); break;
-#		case SVt_PVCV: printf("It's a CV\n"); break;
-#		case SVt_PVHV: printf("It's an HV\n"); break;
-#		case SVt_PVMG: printf("It's magical!\n"); break;
-#	}
-#	printf("Retrieving the individual values of the AV, which has %d elements\n", av_len(tmp_fill_av));
-#				for (av_i = 0; av_i < 8; av_i++) {
-#					curr_fillPat[av_i] = SvIV(*(av_fetch(tmp_fill_av, av_i, 0)));
-#				}
-#			}
-#			
-#			/* If only the plural form of the property is supplied, I need to
-#			 * copy the original pattern into the current pattern so that
-#			 * the comparison at the first stage of the threadloop works. */
-#			else if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
-#				Copy(orig_fillPat, curr_fillPat, 8, char);
-#			}
 
-.q{			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
-				prop_list[n_props++] = fillPatterns_prop_id;
-				orig_fillSV = singular_fillSV = my->get_fillPattern(widget_handle);
-			}
-			if (hv_exists(arg_hash_hv, "fillPattern", 11)) {
-				singular_fillSV = hv_fetch(arg_hash_hv, "fillPattern", 11, 0);
-				my->set_fillPattern(widget_handle, singular_fillSV);
-			}
-
-	printf("Finishing fillPattern initialization\n");
-});
 $set_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-	printf("Starting fillPattern set code\n");
 					/* Find the offset where the current and proposed fill
 					 * pattern differ. */
 	/* test this: difference detection works */
@@ -1472,54 +1399,31 @@ $set_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
 					/* Copy the fill pattern into the array if anything is
 					 * different. */
 					if (fillPat_counter < 8) {
-						for (av_i = 0; av_i < 8; av_i++) {
-							tmp_fill_sv = *(av_fetch(fill_av, av_i, 1));
-							sv_setiv(tmp_fill_sv, $fillPatterns(oct => av_j));
+						for (fillPat_counter = 0; fillPat_counter < 8; fillPat_counter++) {
+							tmp_fill_sv = *(av_fetch(fill_av, fillPat_counter, 1));
+							sv_setiv(tmp_fill_sv, $fillPatterns(oct => fillPat_counter));
 						}
 						
 						/* Set the fill pattern */
 						my->set_fillPattern(widget_handle, fill_ref_sv);
 					}
-	printf("Finishing fillPattern set code\n");
 });
 $cleanup_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-	printf("Starting fillPattern cleanup code\n");
-			
-			/* Not as efficient as the other methods because it doesn't check
-			 * but it's a heck of a lot simpler in this case. */
+			/* Not quite as efficient as the other methods because it doesn't
+			 * check that the pattern has *changed*, but checking for a
+			 * pattern change is remarkably tedious, so just resetting the
+			 * pattern is much simpler. */
 			if (orig_fillSV != 0) {
 				my->set_fillPattern(widget_handle, orig_fillSV);
 			}
-		}
-#	
-#			/* Reset to the originals */
-#			fillPat_counter = 0;
-#			while(
-#				fillPat_counter < 8
-#				&& curr_fillPat[fillPat_counter] != orig_fillPat[fillPat_counter]
-#			) fillPat_counter++;
-#			
-#			if (fillPat_counter < 8) {
-#				for (av_i = 0; av_i < 8; av_i++) {
-#					tmp_fill_sv = *(av_fetch(fill_av, av_i, 1));
-#					sv_setiv(tmp_fill_sv, $fillPatterns(oct => av_j));
-#				}
-#				
-#				/* Set the fill pattern */
-#				my->set_fillPattern(widget_handle, fill_ref_sv);
-#			}
-		.q{
-			/* I will never return these, so I will unconditionally free their memory */
-	printf("Clearing out the temporary memory\n");
+			
+			/* These are not used outside this function so I will
+			 * unconditionally free their memory now. */
 			av_undef(fill_av);
 			sv_2mortal(fill_ref_sv);
-/*			sv_2mortal(fill_av);
-*/	printf("Finishing fillPattern cleanup code\n");
+			/* This gives an error about double-free, so don't do it */
+			/*sv_2mortal(fill_av);*/
 });
-
-=end not-now
-
-=cut
 
 # Spline precision works well with the default setup:
 $pars_args_for{splinePrecisions} = 'int splinePrecisions()';
