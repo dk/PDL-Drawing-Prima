@@ -147,7 +147,7 @@ byte array, since otherwise it will be converted to byte arrays for you.
 The first element of a row in your byte array
 specifies the number of pixels to be "on", the second specifies the number to be
 "off", the third specifies the number to be "on" again, the fourth "off", the
-fifth "on", etc. If that doesn't make sense, hopefull a couple of examples will
+fifth "on", etc. If that doesn't make sense, hopefully a couple of examples will
 help clarify.
 
 This example creates the equivalent of lp::Dash:
@@ -204,7 +204,7 @@ sub piddle_of_patterns_for {
 =head2 piddle_of_handles_for
 
 THIS FUNCTION IS DEPRECATED AND NOW DIES IF YOU TRY TO USE IT. Performing
-the same PDL drawing operation on different widgets via PDL threading clashes
+the same PDL drawing operation on different widgets via PDL threading
 makes atomic behavior very difficult, so this functionality has been removed.
 If you think you'd like this behavior back, please let me know.
 
@@ -1220,7 +1220,8 @@ $pars_args_for{rop2s} = 'int rop2s()';
 # line patterns. This code has to cast the byte piddle into a char and
 # send that and the length to the line_pattern function.
 $pars_args_for{linePatterns} = 'byte linePatterns(patlen)';
-$declare_args_for{linePatterns} = 'SV * tmp_pattern; SV * orig_pattern; SV * curr_pattern';
+$declare_args_for{linePatterns} = 'SV * tmp_pattern; SV * orig_pattern; SV * curr_pattern;
+				int pat_len_to_copy';
 $init_args_for{linePatterns} = pp_line_numbers(__LINE__, q{
 		/* Create the original and current as duplicates of each other */
 		orig_pattern = 0;
@@ -1253,11 +1254,17 @@ $init_args_for{linePatterns} = pp_line_numbers(__LINE__, q{
 		}
 });
 $set_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
-				sv_setpvn(tmp_pattern, (unsigned char *)$P(linePatterns), $SIZE(patlen));
-				if (sv_cmp(tmp_pattern, curr_pattern) != 0) {
-					sv_setsv(curr_pattern, tmp_pattern);
-					my->set_linePattern(widget_handle, curr_pattern);
-				}
+						/* Edge-condition: find any zeros and only copy up to, and
+						 * not including, said zeros. */
+						for (pat_len_to_copy = 0; pat_len_to_copy < $SIZE(patlen); pat_len_to_copy++)
+							if ($linePatterns(patlen => pat_len_to_copy) == 0)
+								break;
+						
+						sv_setpvn(tmp_pattern, (unsigned char *)$P(linePatterns), pat_len_to_copy);
+						if (sv_cmp(tmp_pattern, curr_pattern) != 0) {
+							sv_setsv(curr_pattern, tmp_pattern);
+							my->set_linePattern(widget_handle, curr_pattern);
+						}
 });
 # cleanup code needs to mortalize/decrement the SV's reference count
 $cleanup_code_for{linePatterns} = pp_line_numbers(__LINE__, q{
@@ -1302,12 +1309,14 @@ $init_args_for{translates} = pp_line_numbers(__LINE__, q{
 		}
 });
 $set_code_for{translates} = pp_line_numbers(__LINE__, q{
-				/* Set tr and then use it to set the translate */
-				if ($trans_x() != curr_translate.x || $trans_y() != curr_translate.y) {
-					curr_translate.x = $trans_x();
-					curr_translate.y = $trans_y();
-					my->set_translate(widget_handle, curr_translate);
-				}
+						/* Set tr and then use it to set the translate */
+						if ($trans_x() != curr_translate.x
+							|| $trans_y() != curr_translate.y
+						) {
+							curr_translate.x = $trans_x();
+							curr_translate.y = $trans_y();
+							my->set_translate(widget_handle, curr_translate);
+						}
 });
 $cleanup_code_for{translates} = pp_line_numbers(__LINE__, q{
 		if (curr_translate.x != orig_translate.x || curr_translate.y != orig_translate.y) {
@@ -1319,68 +1328,101 @@ $cleanup_code_for{translates} = pp_line_numbers(__LINE__, q{
 $pars_args_for{fillWindings} = 'byte fillWindings()';
 $declare_args_for{fillWindings} = 'char orig_fillWinding, curr_fillWinding';
 
-# Fill pattern requires that we pack the pattern into an 8x8 Perl array.
-# Kinda stupid, but oh well, what can we do?
+# Fill pattern requires that we pack the pattern into an 8-element Perl array.
 $pars_args_for{fillPatterns} = 'byte fillPatterns(oct=8)';
-$declare_args_for{fillPatterns} = 'char orig_fillPat[8], curr_fillPat[8], tmp_fillPat[8]';
+$declare_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
+						char curr_fillPat[8];
+						SV * orig_fillSV; SV * singular_fillSV;
+						int fillPat_counter;
+						/* Various AV and SV pointers I'll need */
+						AV * fill_av;
+						SV * fill_ref_sv; SV * tmp_fill_sv;
+});
 $init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-			AV * fill_av = newAV();
-			SV * fill_ref_sv = newRV_noinc((SV*)fill_av);
-			AV * tmp_fill_av;
-			SV * tmp_fill_sv;
+			/* Array of integer SVs; usually used through its reference (next) */
+			fill_av = newAV();
+			/* Reference to the above array of int SVs, which is passed to
+			 * Prima drawing events */
+			fill_ref_sv = newRV_noinc((SV*)fill_av);
+			
+			/* These SVs hold the fill patterns for whatever were the original
+			 * and singular fill specifications. These can either be integer
+			 * (named) constants, or they can be arrays of bits (IVs). I would
+			 * prefer to store everything as char[8], but I do not yet know
+			 * how to convert the constant to the char[8] representation. So
+			 * I store these instead. */
+			orig_fillSV = singular_fillSV = 0;
+			
 			/* Ensure there are eight rows */
 			av_fill(fill_av, 7);
 			
-			/* Ensure that each row has eight columns */
-			int av_i, av_j;
-			for (av_i = 0; av_i < 8; av_i++) {
-				tmp_fill_av = newAV();
-				av_fill(tmp_fill_av, 7);
-				av_store(fill_av, av_i, (SV*)tmp_fill_av);
-				
-				/* clear out the fill patterns */
-				curr_fillPat[av_i] = orig_fillPat[av_i] = tmp_fillPat[av_i] = 0;
-			}
-			
+			/* Check the singular and plural properties. */
 			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
 				prop_list[n_props++] = fillPatterns_prop_id;
-				
-				/* Unpack the fill pattern from the array ref into the strings */
-				tmp_fill_sv = my->get_fillPattern(widget_handle);
-				tmp_fill_av = (AV*)SvRV(tmp_fill_sv);
-				for (av_i = 0; av_i < 8; av_i++) {
-					AV * second_av = (AV*)*(av_fetch(tmp_fill_av, av_i, 0));
-					for (av_j = 0; av_j < 8; av_j++) {
-						/* working here - check this shifting logic */
-						tmp_fillPat[av_i] |= (SvIV(*(av_fetch(second_av, av_j, 0))) >> av_j);
-					}
-				}
-				
-				Copy(tmp_fillPat, orig_fillPat, 8, char);
-				Copy(tmp_fillPat, curr_fillPat, 8, char);
+				orig_fillSV = singular_fillSV = my->get_fillPattern(widget_handle);
 			}
 			if (hv_exists(arg_hash_hv, "fillPattern", 11)) {
-				/* working here - bleh */
+				orig_fillSV = my->get_fillPattern(widget_handle);
+				singular_fillSV = *(hv_fetch(arg_hash_hv, "fillPattern", 11, 0));
+				my->set_fillPattern(widget_handle, singular_fillSV);
 			}
-			
 });
+
+#	if (SvROK(tmp_fill_sv)) printf("It's a referece\n");
+#	switch (SvTYPE(tmp_fill_sv)) {
+#		case SVt_IV: printf("It's an RV or an IV\n"); break;
+#		case SVt_NV: printf("It's an NV\n"); break;
+#		case SVt_PV: printf("It's a PV\n"); break;
+#		case SVt_PVAV: printf("It's an AV\n"); break;
+#		case SVt_PVCV: printf("It's a CV\n"); break;
+#		case SVt_PVHV: printf("It's an HV\n"); break;
+#		case SVt_PVMG: printf("It's magical!\n"); break;
+#	}
+
 $set_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-			/* Copy the fill pattern into the array */
-			for (av_i = 0; av_i < 8; av_i++) {
-				tmp_fill_av = (AV*)*(av_fetch(fill_av, av_i, 1));
-				for (av_j = 0; av_j < 8; av_j++) {
-					tmp_fill_sv = *(av_fetch(tmp_fill_av, av_j, 1));
-					sv_setiv(tmp_fill_sv, (((1<<av_j) & $fillPatterns(oct => av_j)) >> av_j));
-				}
-			}
-			
-			/* Set the fill pattern */
-			my->set_fillPattern(widget_handle, fill_ref_sv);
+					/* Find the offset where the current and proposed fill
+					 * pattern differ. */
+	/* test this: difference detection works */
+					fillPat_counter = 0;
+					if (singular_fillSV == 0) {
+						while(
+							fillPat_counter < 8
+							&& curr_fillPat[fillPat_counter]
+								!= $fillPatterns(oct => fillPat_counter)
+						) fillPat_counter++;
+					}
+					else {
+						singular_fillSV = 0;
+					}
+					
+	/* working here - double-check this logic */
+					/* Copy the fill pattern into the array if anything is
+					 * different. */
+					if (fillPat_counter < 8) {
+						for (fillPat_counter = 0; fillPat_counter < 8; fillPat_counter++) {
+							tmp_fill_sv = *(av_fetch(fill_av, fillPat_counter, 1));
+							sv_setiv(tmp_fill_sv, $fillPatterns(oct => fillPat_counter));
+						}
+						
+						/* Set the fill pattern */
+						my->set_fillPattern(widget_handle, fill_ref_sv);
+					}
 });
 $cleanup_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-		/* I will never return these, so I will unconditionally free their memory */
-		av_undef(fill_av);
-		sv_2mortal(fill_ref_sv);
+			/* Not quite as efficient as the other methods because it doesn't
+			 * check that the pattern has *changed*, but checking for a
+			 * pattern change is remarkably tedious, so just resetting the
+			 * pattern is much simpler. */
+			if (orig_fillSV != 0) {
+				my->set_fillPattern(widget_handle, orig_fillSV);
+			}
+			
+			/* These are not used outside this function so I will
+			 * unconditionally free their memory now. */
+			av_undef(fill_av);
+			sv_2mortal(fill_ref_sv);
+			/* This gives an error about double-free, so don't do it */
+			/*sv_2mortal(fill_av);*/
 });
 
 # Spline precision works well with the default setup:
@@ -1446,8 +1488,6 @@ order.
 
 =cut
 
-# working here - consider allowing singular as well as plural options.
-
 pp_addpm <<'DefaultArgumentHandling';
 
 sub get_sorted_args_with_defaults {
@@ -1456,36 +1496,41 @@ sub get_sorted_args_with_defaults {
 	# Default to an empty list:
 	$given = {} unless ref($given) eq 'HASH';
 	
-	# Check that they supplied only allowed parameters:
-	foreach my $parameter (keys %$given) {
-		croak("Unknown parameter $_")
-			unless grep {$_ eq $parameter} @$arg_names
+	# Check that they supplied only allowed parameters (allowing both
+	# singular and plural forms)
+	for my $parameter (keys %$given) {
+		croak("Unknown parameter $parameter")
+			unless grep {
+				# check singular and plural parameter names
+				$_ eq $parameter or $_ eq $parameter . 's'
+				} @$arg_names
 	}
 	
 	# Return the sorted list of supplied or default values
 	my @to_return = ();
-	foreach (@$arg_names) {
-		# If not specified, return a default property of a zero-dim
-		# piddle. Set the value to zero since it is never used.
-		if (not exists $given->{$_}) {
-			push @to_return, (0) for (1..$N_args_for{$_});
+	for my $arg_name (@$arg_names) {
+		# If a plural property is not specified, return a default property of
+		# a zeroed-out, one-element piddle. Set the value to zero since it is
+		# never used.
+		if (not exists $given->{$arg_name}) {
+			push @to_return, (0) for (1..$N_args_for{$arg_name});
 		}
-		elsif (ref ($given->{$_}) eq 'ARRAY') {
+		elsif (ref ($given->{$arg_name}) eq 'ARRAY') {
 			# If an array ref, dereference it and make sure the number
 			# of arguments agrees with what we expect:
-			if (@{$given->{$_}} != $N_args_for{$_}) {
-				croak("Expected 1 argument for $_") if $N_args_for{$_} == 1;
-				croak("Expected $N_args_for{$_} arguments for $_");
+			if (@{$given->{$arg_name}} != $N_args_for{$arg_name}) {
+				croak("Expected 1 argument for $arg_name") if $N_args_for{$arg_name} == 1;
+				croak("Expected $N_args_for{$arg_name} arguments for $arg_name");
 			}
-			push @to_return, @{$given->{$_}};
+			push @to_return, @{$given->{$arg_name}};
 		}
 		else {
 			# Otherwise, return it outright, if we only expected one
 			# argument:
-			$N_args_for{$_} == 1
-				or croak("Expected $N_args_for{$_} arguments for $_");
+			$N_args_for{$arg_name} == 1
+				or croak("Expected $N_args_for{$arg_name} arguments for $arg_name");
 			
-			push @to_return, $given->{$_};
+			push @to_return, $given->{$arg_name};
 		}
 	}
 	return @to_return;
@@ -1530,8 +1575,8 @@ sub generate_PMCode_for {
 	$to_return .= "sub Prima::Drawable::pdl_$func_name {
 	# Before anything else, make sure they supplied at least the
 	# required number of arguments:
-	croak('pdl_$func_name expectes '. scalar($args_array_name)
-		. ' arguments (and the widget): ' . join(', ', 'widget', $args_array_name))
+	croak('pdl_$func_name is a widget method that expectes '. scalar($args_array_name)
+		. ' arguments (besides the widget): ' . join(', ', 'widget', $args_array_name))
 		unless (\@_ > $args_array_name);
 
 	# unpack the widget and the required arguments for this function:
