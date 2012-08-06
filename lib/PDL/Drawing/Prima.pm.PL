@@ -147,7 +147,7 @@ byte array, since otherwise it will be converted to byte arrays for you.
 The first element of a row in your byte array
 specifies the number of pixels to be "on", the second specifies the number to be
 "off", the third specifies the number to be "on" again, the fourth "off", the
-fifth "on", etc. If that doesn't make sense, hopefull a couple of examples will
+fifth "on", etc. If that doesn't make sense, hopefully a couple of examples will
 help clarify.
 
 This example creates the equivalent of lp::Dash:
@@ -204,7 +204,7 @@ sub piddle_of_patterns_for {
 =head2 piddle_of_handles_for
 
 THIS FUNCTION IS DEPRECATED AND NOW DIES IF YOU TRY TO USE IT. Performing
-the same PDL drawing operation on different widgets via PDL threading clashes
+the same PDL drawing operation on different widgets via PDL threading
 makes atomic behavior very difficult, so this functionality has been removed.
 If you think you'd like this behavior back, please let me know.
 
@@ -1328,69 +1328,198 @@ $cleanup_code_for{translates} = pp_line_numbers(__LINE__, q{
 $pars_args_for{fillWindings} = 'byte fillWindings()';
 $declare_args_for{fillWindings} = 'char orig_fillWinding, curr_fillWinding';
 
-# Fill pattern requires that we pack the pattern into an 8x8 Perl array.
-# Kinda stupid, but oh well, what can we do?
+# Fill pattern requires that we pack the pattern into an 8-element Perl array.
 $pars_args_for{fillPatterns} = 'byte fillPatterns(oct=8)';
-$declare_args_for{fillPatterns} = 'char orig_fillPat[8], curr_fillPat[8], tmp_fillPat[8]';
+$declare_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
+						char orig_fillPat[8], curr_fillPat[8];
+						SV * orig_fillSV; SV * singular_fillSV;
+						int fillPat_counter;
+						/* Various AV and SV pointers I'll need */
+						AV * fill_av; AV * tmp_fill_av;
+						SV * fill_ref_sv; SV * tmp_fill_sv;
+});
 $init_args_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-			AV * fill_av = newAV();
-			SV * fill_ref_sv = newRV_noinc((SV*)fill_av);
-			AV * tmp_fill_av;
-			SV * tmp_fill_sv;
+	printf("Starting fillPattern initialization\n");
+			/* Array of integer SVs; usually used through its reference (next) */
+			fill_av = newAV();
+			/* Reference to the above array of int SVs, which is passed to
+			 * Prima drawing events */
+			fill_ref_sv = newRV_noinc((SV*)fill_av);
+			
+			/* These SVs hold the fill patterns for whatever were the original
+			 * and singular fill specifications. These can either be integer
+			 * (named) constants, or they can be arrays of bits (IVs). I would
+			 * prefer to store everything as char[8], but I do not yet know
+			 * how to convert the constant to the char[8] representation. So
+			 * I store these instead. */
+			orig_fillSV = singular_fillSV = 0;
+			
 			/* Ensure there are eight rows */
 			av_fill(fill_av, 7);
 			
-			/* Ensure that each row has eight columns */
+			/* clear out the fill patterns */
 			int av_i, av_j;
 			for (av_i = 0; av_i < 8; av_i++) {
-				tmp_fill_av = newAV();
-				av_fill(tmp_fill_av, 7);
-				av_store(fill_av, av_i, (SV*)tmp_fill_av);
-				
-				/* clear out the fill patterns */
-				curr_fillPat[av_i] = orig_fillPat[av_i] = tmp_fillPat[av_i] = 0;
+				curr_fillPat[av_i] = orig_fillPat[av_i] = 0;
 			}
 			
-			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
+		}
+#			/* Unlike with other properties, retrieving the current fill
+#			 * pattern is rather expensive, and I only want to do it once. 
+#			 * If either is specified, this packs and stores the original
+#			 * fill pattern. */
+#			if (hv_exists(arg_hash_hv, "fillPatterns", 12)
+#				|| hv_exists(arg_hash_hv, "fillPattern", 11)
+#			) {
+#				/* Unpack the fill pattern from the array ref into the strings */
+#				tmp_fill_sv = my->get_fillPattern(widget_handle);
+#				tmp_fill_av = (AV*)SvRV(tmp_fill_sv);
+#				for (av_i = 0; av_i < 8; av_i++) {
+#					orig_fillPat[av_i] = SvIV(*(av_fetch(tmp_fill_av, av_i, 0)));
+#				}
+#			}
+#	/* test this: combinations of singular and plural work correctly */
+#			/* This conditional only checks if the plural form is specified,
+#			 * and if so it adds that to the property list. */
+#			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
+#				prop_list[n_props++] = fillPatterns_prop_id;
+#			}
+#
+#			/* For the singular form of the property, I need to apply it to
+#			 * the Drawabel before we get going, and I need to store it in
+#			 * packed form. */
+#			if (hv_exists(arg_hash_hv, "fillPattern", 11)) {
+#	printf("Setting the new fill pattern\n");
+#				/* The easy part: set the widget with the specified fill
+#				 * pattern. This works whether they specified a named
+#				 * constant or an anonymous array. */
+#				tmp_fill_sv = *(hv_fetch(arg_hash_hv, "fillPattern", 11, 0));
+#				my->set_fillPattern(widget_handle, tmp_fill_sv);
+#				
+#				/* The fill pattern may have been an integer constant, or it
+#				 * may have been an array of IVs. I only know how to process
+#				 * the latter, and I can only obtain that from the integer
+#				 * constant by retrieving the fill pattern from the widget. */
+#				if (!SvROK(tmp_fill_sv)) {
+#					tmp_fill_sv = my->get_fillPattern(widget_handle);
+#				}
+#				
+#				/* Now repack that fill pattern. */
+#				
+#	if (SvROK(tmp_fill_sv)) printf("It's a referece\n");
+#	switch (SvTYPE(tmp_fill_sv)) {
+#		case SVt_IV: printf("It's an RV or an IV\n"); break;
+#		case SVt_NV: printf("It's an NV\n"); break;
+#		case SVt_PV: printf("It's a PV\n"); break;
+#		case SVt_PVAV: printf("It's an AV\n"); break;
+#		case SVt_PVCV: printf("It's a CV\n"); break;
+#		case SVt_PVHV: printf("It's an HV\n"); break;
+#		case SVt_PVMG: printf("It's magical!\n"); break;
+#	}
+#	printf("Dereferencing the AV\n");
+#				tmp_fill_av = (AV*)tmp_fill_sv;
+#	switch (SvTYPE(tmp_fill_av)) {
+#		case SVt_IV: printf("It's an RV or an IV\n"); break;
+#		case SVt_NV: printf("It's an NV\n"); break;
+#		case SVt_PV: printf("It's a PV\n"); break;
+#		case SVt_PVAV: printf("It's an AV\n"); break;
+#		case SVt_PVCV: printf("It's a CV\n"); break;
+#		case SVt_PVHV: printf("It's an HV\n"); break;
+#		case SVt_PVMG: printf("It's magical!\n"); break;
+#	}
+#	printf("Retrieving the individual values of the AV, which has %d elements\n", av_len(tmp_fill_av));
+#				for (av_i = 0; av_i < 8; av_i++) {
+#					curr_fillPat[av_i] = SvIV(*(av_fetch(tmp_fill_av, av_i, 0)));
+#				}
+#			}
+#			
+#			/* If only the plural form of the property is supplied, I need to
+#			 * copy the original pattern into the current pattern so that
+#			 * the comparison at the first stage of the threadloop works. */
+#			else if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
+#				Copy(orig_fillPat, curr_fillPat, 8, char);
+#			}
+
+.q{			if (hv_exists(arg_hash_hv, "fillPatterns", 12)) {
 				prop_list[n_props++] = fillPatterns_prop_id;
-				
-				/* Unpack the fill pattern from the array ref into the strings */
-				tmp_fill_sv = my->get_fillPattern(widget_handle);
-				tmp_fill_av = (AV*)SvRV(tmp_fill_sv);
-				for (av_i = 0; av_i < 8; av_i++) {
-					AV * second_av = (AV*)*(av_fetch(tmp_fill_av, av_i, 0));
-					for (av_j = 0; av_j < 8; av_j++) {
-						/* working here - check this shifting logic */
-						tmp_fillPat[av_i] |= (SvIV(*(av_fetch(second_av, av_j, 0))) >> av_j);
-					}
-				}
-				
-				Copy(tmp_fillPat, orig_fillPat, 8, char);
-				Copy(tmp_fillPat, curr_fillPat, 8, char);
+				orig_fillSV = singular_fillSV = my->get_fillPattern(widget_handle);
 			}
 			if (hv_exists(arg_hash_hv, "fillPattern", 11)) {
-				/* working here - bleh */
+				singular_fillSV = hv_fetch(arg_hash_hv, "fillPattern", 11, 0);
+				my->set_fillPattern(widget_handle, singular_fillSV);
 			}
-			
+
+	printf("Finishing fillPattern initialization\n");
 });
 $set_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-			/* Copy the fill pattern into the array */
-			for (av_i = 0; av_i < 8; av_i++) {
-				tmp_fill_av = (AV*)*(av_fetch(fill_av, av_i, 1));
-				for (av_j = 0; av_j < 8; av_j++) {
-					tmp_fill_sv = *(av_fetch(tmp_fill_av, av_j, 1));
-					sv_setiv(tmp_fill_sv, (((1<<av_j) & $fillPatterns(oct => av_j)) >> av_j));
-				}
-			}
-			
-			/* Set the fill pattern */
-			my->set_fillPattern(widget_handle, fill_ref_sv);
+	printf("Starting fillPattern set code\n");
+					/* Find the offset where the current and proposed fill
+					 * pattern differ. */
+	/* test this: difference detection works */
+					fillPat_counter = 0;
+					if (singular_fillSV == 0) {
+						while(
+							fillPat_counter < 8
+							&& curr_fillPat[fillPat_counter]
+								!= $fillPatterns(oct => fillPat_counter)
+						) fillPat_counter++;
+					}
+					else {
+						singular_fillSV = 0;
+					}
+					
+	/* working here - double-check this logic */
+					/* Copy the fill pattern into the array if anything is
+					 * different. */
+					if (fillPat_counter < 8) {
+						for (av_i = 0; av_i < 8; av_i++) {
+							tmp_fill_sv = *(av_fetch(fill_av, av_i, 1));
+							sv_setiv(tmp_fill_sv, $fillPatterns(oct => av_j));
+						}
+						
+						/* Set the fill pattern */
+						my->set_fillPattern(widget_handle, fill_ref_sv);
+					}
+	printf("Finishing fillPattern set code\n");
 });
 $cleanup_code_for{fillPatterns} = pp_line_numbers(__LINE__, q{
-		/* I will never return these, so I will unconditionally free their memory */
-		av_undef(fill_av);
-		sv_2mortal(fill_ref_sv);
+	printf("Starting fillPattern cleanup code\n");
+			
+			/* Not as efficient as the other methods because it doesn't check
+			 * but it's a heck of a lot simpler in this case. */
+			if (orig_fillSV != 0) {
+				my->set_fillPattern(widget_handle, orig_fillSV);
+			}
+		}
+#	
+#			/* Reset to the originals */
+#			fillPat_counter = 0;
+#			while(
+#				fillPat_counter < 8
+#				&& curr_fillPat[fillPat_counter] != orig_fillPat[fillPat_counter]
+#			) fillPat_counter++;
+#			
+#			if (fillPat_counter < 8) {
+#				for (av_i = 0; av_i < 8; av_i++) {
+#					tmp_fill_sv = *(av_fetch(fill_av, av_i, 1));
+#					sv_setiv(tmp_fill_sv, $fillPatterns(oct => av_j));
+#				}
+#				
+#				/* Set the fill pattern */
+#				my->set_fillPattern(widget_handle, fill_ref_sv);
+#			}
+		.q{
+			/* I will never return these, so I will unconditionally free their memory */
+	printf("Clearing out the temporary memory\n");
+			av_undef(fill_av);
+			sv_2mortal(fill_ref_sv);
+/*			sv_2mortal(fill_av);
+*/	printf("Finishing fillPattern cleanup code\n");
 });
+
+=end not-now
+
+=cut
 
 # Spline precision works well with the default setup:
 $pars_args_for{splinePrecisions} = 'int splinePrecisions()';
@@ -1455,8 +1584,6 @@ order.
 
 =cut
 
-# working here - consider allowing singular as well as plural options.
-
 pp_addpm <<'DefaultArgumentHandling';
 
 sub get_sorted_args_with_defaults {
@@ -1465,36 +1592,41 @@ sub get_sorted_args_with_defaults {
 	# Default to an empty list:
 	$given = {} unless ref($given) eq 'HASH';
 	
-	# Check that they supplied only allowed parameters:
-	foreach my $parameter (keys %$given) {
-		croak("Unknown parameter $_")
-			unless grep {$_ eq $parameter} @$arg_names
+	# Check that they supplied only allowed parameters (allowing both
+	# singular and plural forms)
+	for my $parameter (keys %$given) {
+		croak("Unknown parameter $parameter")
+			unless grep {
+				# check singular and plural parameter names
+				$_ eq $parameter or $_ eq $parameter . 's'
+				} @$arg_names
 	}
 	
 	# Return the sorted list of supplied or default values
 	my @to_return = ();
-	foreach (@$arg_names) {
-		# If not specified, return a default property of a zero-dim
-		# piddle. Set the value to zero since it is never used.
-		if (not exists $given->{$_}) {
-			push @to_return, (0) for (1..$N_args_for{$_});
+	for my $arg_name (@$arg_names) {
+		# If a plural property is not specified, return a default property of
+		# a zeroed-out, one-element piddle. Set the value to zero since it is
+		# never used.
+		if (not exists $given->{$arg_name}) {
+			push @to_return, (0) for (1..$N_args_for{$arg_name});
 		}
-		elsif (ref ($given->{$_}) eq 'ARRAY') {
+		elsif (ref ($given->{$arg_name}) eq 'ARRAY') {
 			# If an array ref, dereference it and make sure the number
 			# of arguments agrees with what we expect:
-			if (@{$given->{$_}} != $N_args_for{$_}) {
-				croak("Expected 1 argument for $_") if $N_args_for{$_} == 1;
-				croak("Expected $N_args_for{$_} arguments for $_");
+			if (@{$given->{$arg_name}} != $N_args_for{$arg_name}) {
+				croak("Expected 1 argument for $arg_name") if $N_args_for{$arg_name} == 1;
+				croak("Expected $N_args_for{$arg_name} arguments for $arg_name");
 			}
-			push @to_return, @{$given->{$_}};
+			push @to_return, @{$given->{$arg_name}};
 		}
 		else {
 			# Otherwise, return it outright, if we only expected one
 			# argument:
-			$N_args_for{$_} == 1
-				or croak("Expected $N_args_for{$_} arguments for $_");
+			$N_args_for{$arg_name} == 1
+				or croak("Expected $N_args_for{$arg_name} arguments for $arg_name");
 			
-			push @to_return, $given->{$_};
+			push @to_return, $given->{$arg_name};
 		}
 	}
 	return @to_return;
@@ -1539,8 +1671,8 @@ sub generate_PMCode_for {
 	$to_return .= "sub Prima::Drawable::pdl_$func_name {
 	# Before anything else, make sure they supplied at least the
 	# required number of arguments:
-	croak('pdl_$func_name expectes '. scalar($args_array_name)
-		. ' arguments (and the widget): ' . join(', ', 'widget', $args_array_name))
+	croak('pdl_$func_name is a widget method that expectes '. scalar($args_array_name)
+		. ' arguments (besides the widget): ' . join(', ', 'widget', $args_array_name))
 		unless (\@_ > $args_array_name);
 
 	# unpack the widget and the required arguments for this function:
