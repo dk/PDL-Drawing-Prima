@@ -237,6 +237,16 @@ _piddle_of_handles_for(SV * piddle_SV, ...)
 
 =cut
 
+#=head2 piddle_of_fillPatterns_for
+#
+#This function is not yet implemented, but some day it will return piddles
+#for any Prima named fill pattern.
+#
+# It should be able to operate either by calling the fillPattern setter and
+# immediately retrieving the resulting fill pattern, or by accessing the
+# fill pattern collection directly. Don't know why that didn't work when I
+# tried it earlier. Maybe I didn't de-reference the SV double-pointer?
+
 pp_addpm({At=>'Top'},<<'ModuleMaterial');
 
 =head1 METHODS
