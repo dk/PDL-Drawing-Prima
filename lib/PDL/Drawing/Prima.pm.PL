@@ -3527,15 +3527,6 @@ the primitive, defer to the widget's default color, or use the value associated
 with the singular key (i.e. C<color>). But I haven't decided which of these is
 best.
 
-=item "Atomic" Operations
-
-I would like to be able to specify colors, for example, and have the state of
-the widget revert back to the original color after the drawing command has
-finished. In other words, I would like the state of the widget after these
-drawing commands to be the same that it was before these commands. This can be
-implemented by having the drawing commands backup the widget's properties before
-running, and restoring them afterwards.
-
 =back
 
 =head1 AUTHOR
