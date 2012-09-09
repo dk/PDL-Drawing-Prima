@@ -294,8 +294,9 @@ pp_addhdr(pp_line_numbers(__LINE__ + 1, <<'HEADER'));
  * method table pointer in the BOOT section. */
 PDrawable_vmt CDrawable;
 
-/* get_size requires this dummy variable */
+/* dummy variables for getter/setter functions called in getter mode */
 Point Point_buffer;
+Rect Rect_buffer;
 
 #define DECLARE_POINT_DATA													\
 	Point * points_to_plot;													\
