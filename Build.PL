@@ -11,7 +11,7 @@ $inc =~ s/-I//g;
 my @incs = ($inc, @{$Prima::Config::Config{incpaths}});
 
 # Explicitly set the version here; all .pm.PL files will use this:
-my $version = '0.08';
+my $version = '0.08_01';
 
 my $build = Module::Build->new(
 	module_name => 'PDL::Drawing::Prima',
@@ -69,8 +69,25 @@ my $build = Module::Build->new(
 	},
 );
 
-# Find the Prima library for linking:
-if ($^O =~ /MS/ or $^O eq 'cygwin') {
+# Find the Prima library for linking on Windows architectures. This requires
+# an unfortunately substantial amount of setup-dependent munging. :-(
+if ($^O eq 'cygwin') {
+	my $path = $Prima::Config::Config{libs};
+	
+	# We should have something like "-L/lenthy/path -lPrima". Verify before
+	# munging
+	croak("Bailing out: for cygwin setups, I expect Prima's libs config to "
+		. "look like '-L/lengthy/path -lPrima', but it doesn't:\n  $path")
+		unless $path =~ /^-L\S+\s+-lPrima/;
+	
+	# May the munging commence! Construct a direct path to the library for
+	# the linker to use:
+	$path =~ s/^-L/-l:/;
+	$path =~ s/ -l/\//;
+	$path .= '.dll';
+	$build->extra_linker_flags($path);
+}
+elsif ($^O =~ /MS/) {
 	my $path = $Prima::Config::Config{libs};
 	
 	# Extract the path. This assumes that the path seperator is a single
