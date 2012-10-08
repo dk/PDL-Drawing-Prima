@@ -70,35 +70,27 @@ my $build = Module::Build->new(
 );
 
 # Find the Prima library for linking on Windows architectures. This requires
-# an unfortunately substantial amount of setup-dependent munging. :-(
-if ($^O eq 'cygwin') {
+# an unfortunately substantial amount of munging. :-(
+if ($^O eq 'cygwin' or $^O =~ /MS/) {
 	my $path = $Prima::Config::Config{libs};
 	
-	# We should have something like "-L/lenthy/path -lPrima". Verify before
-	# munging
-	croak("Bailing out: for cygwin setups, I expect Prima's libs config to "
-		. "look like '-L/lengthy/path -lPrima', but it doesn't:\n  $path")
-		unless $path =~ /^-L\S+\s+-lPrima/;
+	# Do we have a full path with no linker flags?
+	if ($path =~ /.(lib)?Prima\.[^.]+$/) {
+		$path = "-l:$path";
+	}
+	# Do we have linker flags?
+	elsif ($path =~ /^-L\S+\s+-lPrima/) {
+		# Construct a direct path to the library for the linker to use:
+		$path =~ s/^-L/-l:/;
+		$path =~ s/ -l/\//;
+		$path .= '.dll';
+	}
+	# Anything else?
+	else {
+		croak("Unknown path [$path]; I expected either the exact path or a set of linker flags");
+	}
 	
-	# May the munging commence! Construct a direct path to the library for
-	# the linker to use:
-	$path =~ s/^-L/-l:/;
-	$path =~ s/ -l/\//;
-	$path .= '.dll';
 	$build->extra_linker_flags($path);
-}
-elsif ($^O =~ /MS/) {
-	my $path = $Prima::Config::Config{libs};
-	
-	# Extract the path. This assumes that the path seperator is a single
-	# character, but otherwise is not system-specific. Since it only applies
-	# to MS and Cygwin, I think it'll be fine:
-	die "Unable to determine the Prima library name\n"
-		unless $path =~ s/.(lib)?Prima\.[^.]+$//;
-	# Note that the -L and -l flags are available through Prima's config module
-	# as $Prima::Config::Config{ldlibpathflag} and
-	# $Prima::Config::Config{ldlibflag}. Consider using those.
-	$build->extra_linker_flags("-L$path", "-lPrima");
 }
 
 $build->create_build_script;
