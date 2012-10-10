@@ -69,28 +69,10 @@ my $build = Module::Build->new(
 	},
 );
 
-# Find the Prima library for linking on Windows architectures. This requires
-# an unfortunately substantial amount of munging. :-(
-if ($^O eq 'cygwin' or $^O =~ /MS/) {
-	my $path = $Prima::Config::Config{libs};
-	
-	# Do we have a full path with no linker flags?
-	if ($path =~ /.(lib)?Prima\.[^.]+$/) {
-		$path = "-l:$path";
-	}
-	# Do we have linker flags?
-	elsif ($path =~ /^-L\S+\s+-lPrima/) {
-		# Construct a direct path to the library for the linker to use:
-		$path =~ s/^-L/-l:/;
-		$path =~ s/ -l/\//;
-		$path .= '.dll';
-	}
-	# Anything else?
-	else {
-		croak("Unknown path [$path]; I expected either the exact path or a set of linker flags");
-	}
-	
-	$build->extra_linker_flags($path);
-}
+# Link to Prima's dynamic library if there are any linker settings.
+# (Big shout out to Dmitry, Rob, and Chris for helping me solve this!!)
+$build->extra_linker_flags(split(/\s+/, $Prima::Config::Config{libs}))
+	if $Prima::Config::Config{libs};
+
 
 $build->create_build_script;
