@@ -227,18 +227,18 @@ my $hsv_to_rgb_code = q{
 				if (h < 0) h = 0;
 				if (h > 360) h = 360;
 				
-				/* Adjust hue to run between 0 and 4 instead of 0 and 360 */
+				/* Adjust hue to run between 0 and 6 instead of 0 and 360 */
 				h /= 60;
 				
-				/* To help understand this, see */
-				/* en.wikipedia.org/wiki/HSL_and_HSV#From_HSV */
+				/* To help understand this, see hsv2rgb from Prima's ColorDialog.pm */
+				/* and also Fig. 24 under en.wikipedia.org/wiki/HSL_and_HSV#From_HSV */
 				i = (int) h;
 				f = h - i;
 				w = v * (1 - s);
 				q = v * (1 - (s * f));
 				t = v * (1 - (s * (1 - f)));
 				
-				if (i == 0) {
+				if (i == 0 || i == 6) {
 					$rgb(m=>0) = v;
 					$rgb(m=>1) = t;
 					$rgb(m=>2) = w;
