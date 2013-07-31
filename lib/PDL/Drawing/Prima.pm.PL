@@ -269,7 +269,7 @@ in PP.pm, but that appears to be the output behavior.
 =cut
 
 pp_add_boot pp_line_numbers(__LINE__, q{
-/*	PRIMA_VERSION_BOOTCHECK;
+	PRIMA_VERSION_BOOTCHECK;
 	/* Initialize the Drawable virtual method table pointer, which is declared
 	 * below and used to detect if the widget supports direct calls using the
 	 * apricot graphics drawing functions. */
