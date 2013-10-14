@@ -3401,6 +3401,7 @@ $code = 	q{
 		. generate_switch_loop_for(@properties)
 		. pp_line_numbers(__LINE__, q[
 			/* Figure out the reduced_skip */
+			reduced_skip = 0;
 			if ($N_points() > 2) reduced_skip = $skip() % $N_points();
 			
 			/* Skip bad values */
@@ -3425,9 +3426,11 @@ $code = 	q{
 				N_sides = $N_points();
 				for(i = 0; i < N_sides; ++i) {
 					/* draw lines from the center to each point */
-					my->line(widget_handle, $x(), $y()
-						, $x() + $size() * cos(angle)
-						, $y() + $size() * sin(angle));
+					my->line(widget_handle, $x(), $y(),
+													/* crooked line hack */
+						$x() + $size() * cos(angle) + 0.02,
+						$y() + $size() * sin(angle) + 0.02
+					);
 					/* update the angle */
 					angle += TWOPI / N_sides;
 				}
@@ -3451,8 +3454,9 @@ $code = 	q{
 					/* Calculate the points for the Symbol */
 					for (i = 0; i < N_sides; ++i) {
 						ADD_POINT(polyline, i
-							, $x() + $size() * cos(angle)
-							, $y() + $size() * sin(angle));
+															/* crooked line hack */
+							, $x() + $size() * cos(angle) + 0.02
+							, $y() + $size() * sin(angle) + 0.02);
 						angle += TWOPI/$N_points() * reduced_skip;
 					}
 					
