@@ -492,6 +492,9 @@ BADDOC
 # minmaxforpair #
 #################
 
+my $indx_type = PDL::Types::mapfld(indx => 'convertfunc', 'ppsym');
+$indx_type ||= '';
+
 =head2 minmaxforpair
 
 =cut
@@ -507,7 +510,7 @@ pp_def('minmaxforpair',
 		// not in this function. So, if it is a floating point value, set the
 		// initial min/max to something that we know will be overridden, and be
 		// sure to check at the end that it is, indeed, overridden.
-		types (BSULNQ) %{
+		types (BSUL} . $indx_type . q{Q) %{
 			$min_x() = $x(n => 0);
 			$max_x() = $x(n => 0);
 			$min_y() = $y(n => 0);
