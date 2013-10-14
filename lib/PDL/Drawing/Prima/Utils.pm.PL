@@ -503,7 +503,7 @@ pp_def('minmaxforpair',
 		// Set the initial values for the min/max. The naive approach is to set
 		// the first value as our starting point, which works fine for integer
 		// types. However, this approach is not guaranteed to work with
-		// floating-point values since inf and nan are valid valies in PDL, but
+		// floating-point values since inf and nan are valid values in PDL, but
 		// not in this function. So, if it is a floating point value, set the
 		// initial min/max to something that we know will be overridden, and be
 		// sure to check at the end that it is, indeed, overridden.

@@ -55,7 +55,7 @@ ModuleMaterial
 You, gentle reader, are reading this documentation off of CPAN. I know this
 because B<this> paragraph does not show up in the final .pm files that are
 installed on a user's computer. The documentation that you see may have a
-few sublte differences from the documentation that you would view on your
+few subtle differences from the documentation that you would view on your
 computer using C<podview> or C<perldoc>. If you have any concerns regarding
 documentation skew, be sure to check the documentation on your local machine.
 
