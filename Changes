@@ -2,9 +2,19 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in chronological order, i.e. oldest at the top
 
-0.10 MTH ##, 2013
+0.11 MTH ##, 2013
+
+0.10 Oct 28, 2013
 
   [ENHANCEMENTS]
+  
+  * Added backwards-compatible support for PDL v2.007.
+  
+  * Hacked an improved symbol drawing for crosses and triangles. It sometimes
+    happened that the bottom leg of a cross symbol wasn't straight down due to
+    rounding a floating-point number that is slightly less than the integer it
+    was supposed to be. This hack makes it work slightly better, though an even
+    better algorithm would be preferred.
   
   * Added a Changes file.
   
