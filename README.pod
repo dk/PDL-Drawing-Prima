@@ -45,6 +45,14 @@ comprehensive test suite is on the list of things to do next.
 If this project gets a bit of momentum behind it, I truly hope that the
 test suite gets some much-needed attention.
 
+=head1 DEV SETUP
+
+I find that I forget to update my Changes file without a commit hook to remind
+me. That commit hook is distributed with this repository, called
+F<git-pre-commit-hook.pl>. After you have cloned this repository, you can enable
+it by copying it to your repo's commit hooks directory with something like this:
+
+ cp git-pre-commit-hook.pl .git/hooks/pre-commit
 
 =head1 DEPENDENCIES
 
