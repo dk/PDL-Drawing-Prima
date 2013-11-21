@@ -502,7 +502,7 @@ $indx_type ||= '';
 pp_def('minmaxforpair',
 	Pars => 'x(n); y(n); [o] min_x(); [o] min_y(); [o] max_x(); [o] max_y()',
 	# Good code.
-	Code => pp_line_numbers(__LINE__, q{
+	Code => pp_line_numbers(__LINE__, q[
 		// Set the initial values for the min/max. The naive approach is to set
 		// the first value as our starting point, which works fine for integer
 		// types. However, this approach is not guaranteed to work with
@@ -510,7 +510,7 @@ pp_def('minmaxforpair',
 		// not in this function. So, if it is a floating point value, set the
 		// initial min/max to something that we know will be overridden, and be
 		// sure to check at the end that it is, indeed, overridden.
-		types (BSUL} . $indx_type . q{Q) %{
+		types (BSUL] . $indx_type . q[Q) %{
 			$min_x() = $x(n => 0);
 			$max_x() = $x(n => 0);
 			$min_y() = $y(n => 0);
@@ -525,7 +525,7 @@ pp_def('minmaxforpair',
 		%}
 		
 		loop(n) %{
-			types (BSULNQ) %{
+			types (BSUL] . $indx_type . q[Q) %{
 				if ($x() < $min_x()) $min_x() = $x();
 				if ($max_x() < $x()) $max_x() = $x();
 				if ($y() < $min_y()) $min_y() = $y();
@@ -555,7 +555,7 @@ pp_def('minmaxforpair',
 				$SETBAD(max_y());
 			}
 		%}
-	}),
+	]),
 	# Bad code
 	HandleBad => 1,
 	BadCode => pp_line_numbers(__LINE__, q{
