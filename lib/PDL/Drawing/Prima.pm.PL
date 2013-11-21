@@ -37,6 +37,7 @@ use PDL::Char;
 use Scalar::Util 'blessed';
 use Carp 'croak';
 use PDL::Drawing::Prima::Utils;
+use Prima::noX11;
 
 # working here - use Exporter and set as 'EXPORT_OK' the functions
 # pdl_of_patterns_for. Its usage looks like this:
