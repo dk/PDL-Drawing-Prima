@@ -281,10 +281,17 @@ pp_addhdr(pp_line_numbers(__LINE__ + 1, <<'HEADER'));
 
 /* apricot is the (strangely named) header file that contains all of the
  * cross-platform functions. */
-
 #undef WORD
 #include <apricot.h>
 #include <math.h>
+
+
+/* Set up the isnan and isinf functions for cross-platform work */
+#ifdef _MSC_VER
+	#include <float.h>
+	#define isnan(x) _isnan(x)
+	#define isinf(x) (!_finite(x))
+#endif
 
 /* working here - is this cross-platform? */
 #define my CDrawable(widget_handle)
