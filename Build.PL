@@ -8,6 +8,7 @@ use Config;
 # These are lifted from PDL::Core::Dev, but use a less redundant style:
 my $inc = PDL_INCLUDE;
 $inc =~ s/-I//g;
+$inc =~ s/"//g;
 my @incs = ($inc, @{$Prima::Config::Config{incpaths}});
 
 # Explicitly set the version here; all .pm.PL files will use this:
