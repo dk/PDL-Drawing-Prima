@@ -1610,6 +1610,13 @@ sub generate_PMCode_for {
 	
 	my \%args = \@_;
 	
+	# Check for piddles as values for singular properties
+	for (keys \%args) {
+		if (\$_ !~ /s\$/ && eval { \$args{\$_}->isa('PDL') }) {
+			croak \"A piddle passed as singular \$_ property\";
+		}
+	}
+	
 	# Get the a full list of arguments suitable for the internal pp code
 	# in the correct order:
 	my \@args_with_defs
