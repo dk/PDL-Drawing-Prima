@@ -8,6 +8,13 @@ OTHER. Entries should be in chronological order, i.e. oldest at the top
   
   * Fixed backwards-compatible support code, which wasn't actually fully
     backwards compatible as written.
+  
+  * Update Build.PL to work with newest PDL.
+  
+  [DEVELOPMENT]
+  
+  * Added Travis support for github repository
+
 
 0.10 Oct 28, 2013
 
