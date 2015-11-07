@@ -1,5 +1,7 @@
 =head1 PDL::Drawing::Prima
 
+=for HTML <p><img src="https://travis-ci.org/run4flat/PDL-Drawing-Prima.svg?branch=master" alt="Travis-CI status" /></p>
+
 A PDL interface to the Prima drawing commands.
 
 Buried deep inside the wonderful, Perl-centric Prima toolkit is a set of
