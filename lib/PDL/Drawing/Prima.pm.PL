@@ -202,41 +202,7 @@ sub piddle_of_patterns_for {
 	return $to_return;
 }
 
-=head2 piddle_of_handles_for
-
-THIS FUNCTION IS DEPRECATED AND NOW DIES IF YOU TRY TO USE IT. Performing
-the same PDL drawing operation on different widgets via PDL threading
-makes atomic behavior very difficult, so this functionality has been removed.
-If you think you'd like this behavior back, please let me know.
-
-=cut
-
-sub piddle_of_handles_for {
-	croak("piddle_of_handles_for has been deprecated");
-}
-
 ModuleMaterial
-
-=begin old_code
-
-This used to be useful.
-
-pp_addxs('', q{
-void
-_piddle_of_handles_for(SV * piddle_SV, ...)
-	CODE:
-		int i;
-		/* Get at the piddle's actual data array */
-		long long * piddle = (long long*)SvPVX(piddle_SV);
-		/* Fill the array with the handle values */
-		for (i = 1; i < items; i++) {
-			piddle[i-1] = (long long) gimme_the_mate(ST(i));
-		}
-});
-
-=end old_code
-
-=cut
 
 #=head2 piddle_of_fillPatterns_for
 #
