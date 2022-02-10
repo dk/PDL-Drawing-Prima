@@ -1,6 +1,17 @@
 Put changes under the appropriate header. Headers can include API CHANGES, 
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
-OTHER. Entries should be in chronological order, i.e. oldest at the top
+OTHER. Entries should be in reverse chronological order, i.e. newest on top.
+
+0.13 Feb 09, 2022
+
+  [BUG FIXES]
+  
+  * Prima changed fillWinding to fillMode, which required a change to
+    PDL::Drawing::Prima's interface. Thanks to dk for this fix!
+
+  [DEPENDENCIES]
+  
+  * Bumped required verson of Prima to 1.57
 
 0.12 Aug 01, 2016
 

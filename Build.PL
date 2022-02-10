@@ -12,7 +12,7 @@ $inc =~ s/"//g;
 my @incs = ($inc, @{$Prima::Config::Config{incpaths}});
 
 # Explicitly set the version here; all .pm.PL files will use this:
-my $version = '0.12_01';
+my $version = '0.13';
 
 my $build = Module::Build->new(
 	module_name => 'PDL::Drawing::Prima',
