@@ -2,6 +2,18 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in reverse chronological order, i.e. newest on top.
 
+0.13_01 MTH ##, 2022
+
+  More to be written...
+
+  [DEPENDENCIES]
+  
+  * Bumped required verson of PDL to v2.037. Should have done this with the
+    release of v0.13, but that was a bit hasty. Oops. This is the required
+    minimum version mostly because some versions of PDL earlier than
+    v2.037 made changes to PDL::PP that broke the compilation of this
+    distribution. The changes to PDL::PP were fixed with v2.037.
+
 0.13 Feb 09, 2022
 
   [BUG FIXES]
