@@ -13,6 +13,12 @@ OTHER. Entries should be in reverse chronological order, i.e. newest on top.
     minimum version mostly because some versions of PDL earlier than
     v2.037 made changes to PDL::PP that broke the compilation of this
     distribution. The changes to PDL::PP were fixed with v2.037.
+  
+  [BUG FIXES]
+  
+  * Fixed a minor bug that caused PDL::Drawing::Prima::Utils to not compile
+    on some platforms. Should have used pp_line_numbers, but rolled my own
+    in a few spots for some reason.
 
 0.13 Feb 09, 2022
 
