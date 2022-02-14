@@ -4,7 +4,13 @@ OTHER. Entries should be in reverse chronological order, i.e. newest on top.
 
 0.13_01 MTH ##, 2022
 
-  More to be written...
+  [ENHANCEMENTS]
+  
+  * Now includes a real test! t/10 uses the Prima/Perl interface and the
+    pdl interface to draw what should be identical things---lines of
+    various colors. It then performs a pixel-by-pixel comparison to make
+    sure you get the exact same result. Much more needs to be written
+    but now at least I have the template.
 
   [DEPENDENCIES]
   
