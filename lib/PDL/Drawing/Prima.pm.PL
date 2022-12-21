@@ -120,7 +120,7 @@ L<PDL::Graphics::Prima>, the plotting library built on these bindings.
 
 This bindings can be applied to B<any> object whose class is derived from
 L<Prima::Drawable>, including displayed widgets and abstract canvases such
-as L<Prima::PS::Drawable>. If you create your own derived canvas, these
+as L<Prima::PS::Printer>. If you create your own derived canvas, these
 methods should Just Work. (I wish I could take credit for this, but it's
 really due to the fact that Prima's internals are very well engineered.)
 
