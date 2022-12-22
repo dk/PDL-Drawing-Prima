@@ -18,6 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Prepare
+        run: |
+            uname -a
+            apt-get install -y x11proto-dev
+            cpanm --notest Prima PDL
       - name: Build
         run: |
             perl Build.PL
