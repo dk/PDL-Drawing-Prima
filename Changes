@@ -2,6 +2,14 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in reverse chronological order, i.e. newest on top.
 
+0.15 Dec 24, 2022
+
+  * Dmitry Karasik takes over the project.
+    - Compile with latest Prima
+    - Update links
+    - Switch from Travis CI to Github Actions
+    - Run tests without X11
+
 0.14_01 MTH XX, 2022
 
 0.14 Feb 13, 2022
