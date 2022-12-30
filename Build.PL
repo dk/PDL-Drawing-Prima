@@ -20,8 +20,8 @@ my $build = Module::Build->new(
 	dist_version => $version,
 	license  => 'perl',
 	configure_requires => {
-		PDL						=> '2.037',
-		Prima					=> '1.57',
+		PDL   => '2.037',
+		Prima => '1.57',
 		# meta_merge was added in v 0.28:
 		'Module::Build'		=> 0.28,
 	},
@@ -31,10 +31,10 @@ my $build = Module::Build->new(
 		'ExtUtils::ParseXS'	=> '3.0',
 	},
 	requires => {
-		# Due to the use of Prima, I need at least 5.10:
-		perl					=> '5.10.0',
-		PDL						=> '2.037',
-		Prima					=> '1.57',
+		# Due to the use of Prima, I need at least 5.12:
+		perl  => '5.12.0',
+		PDL   => '2.037',
+		Prima => '1.57',
 	},
 	needs_compiler => 1,
 	include_dirs => \@incs,
