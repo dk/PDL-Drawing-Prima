@@ -2,6 +2,10 @@ Put changes under the appropriate header. Headers can include API CHANGES,
 DIFFERENT BEHAVIOR, BUG FIXES, DEPENDENCIES, ENHANCEMENTS, NEW FEATURES, and
 OTHER. Entries should be in reverse chronological order, i.e. newest on top.
 
+0.16 Jan 16, 2023
+
+   Added pictures to the docs
+
 0.15 Dec 24, 2022
 
   * Dmitry Karasik takes over the project.
