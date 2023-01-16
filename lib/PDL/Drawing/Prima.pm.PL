@@ -69,6 +69,10 @@ pp_addpm({At=>'Top'},<<'ModuleMaterial');
 
 =head1 SYNOPSIS
 
+=for podview <img src="PDL/Drawing/Prima/pod/sin.png">
+
+=for html <p><img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/sin.png">
+
 Each of the methods comes with a small sample snippet. To see how it
 looks, copy this synopsis and replace the code in the
 C<Example code goes here> block with the example code.
@@ -80,8 +84,9 @@ C<Example code goes here> block with the example code.
  use Prima qw(Application);
 
  my $window = Prima::MainWindow->create(
-     text    => 'PDL::Drawing::Prima Test',
-     onPaint => sub {
+     text      => 'PDL::Drawing::Prima Test',
+     antialias => 1,
+     onPaint   => sub {
          my ( $self, $canvas) = @_;
 
          # wipe the canvas:

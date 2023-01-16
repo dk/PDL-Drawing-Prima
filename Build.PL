@@ -65,5 +65,5 @@ my $build = Module::Build->new(
 $build->extra_linker_flags(split(/\s+/, $Prima::Config::Config{libs}))
 	if $Prima::Config::Config{libs};
 
-
+$build->add_build_element('png');
 $build->create_build_script;
