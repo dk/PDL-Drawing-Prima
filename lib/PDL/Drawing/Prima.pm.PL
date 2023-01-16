@@ -3205,6 +3205,14 @@ number of sides. Precisely what kind of polygon it draws is based on the
 value of C<skip>. For example, a five-sided polygon with a C<skip> of one
 would give you a pentagon:
 
+=for podview <img src="PDL/Drawing/Prima/pod/skip1.png" cut=1 title="skip = 1">
+
+=for html <p>
+<figure>
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip1.png">
+<figcaption>skip = 1</figcaption>
+</figure>
+<!--
 
                            second point
                                _
@@ -3221,7 +3229,20 @@ would give you a pentagon:
 
                            skip = 1
 
+=for html -->
+
+=for podview </cut>
+
 In contrast, a five-sided polygon with a skip of 2 will give you a star:
+
+=for podview <img src="PDL/Drawing/Prima/pod/skip2.png" cut=1 title="skip = 2">
+
+=for html <p>
+<figure>
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip2.png">
+<figcaption>skip = 2</figcaption>
+</figure>
+<!--
 
                            fourth point
 
@@ -3237,8 +3258,21 @@ In contrast, a five-sided polygon with a skip of 2 will give you a star:
 
                            skip = 2
 
+=for html -->
+
+=for podview </cut>
+
 A skip of three would give visually identical results but the actual order
 in which the vertices are drawn is different:
+
+=for podview <img src="PDL/Drawing/Prima/pod/skip3.png" cut=1 title="skip = 3">
+
+=for html <p>
+<figure>
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip3.png">
+<figcaption>skip = 3</figcaption>
+</figure>
+<!--
 
                            third point
 
@@ -3254,8 +3288,22 @@ in which the vertices are drawn is different:
 
                            skip = 3
 
+=for html -->
+
+=for podview </cut>
+
 A skip of zero is a special case, and means I<draw lines to each point from
 the center.> In other words, create an asterisk:
+
+=for podview <img src="PDL/Drawing/Prima/pod/skip0.png" cut=1 title="skip = 0">
+
+=for html <p>
+<figure>
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip0.png">
+<figcaption>skip = 0</figcaption>
+</figure>
+<!--
+
 
                            second point
 
@@ -3271,6 +3319,10 @@ the center.> In other words, create an asterisk:
                            fifth point
 
                            skip = 0
+
+=for html -->
+
+=for podview </cut>
 
 In summary, a C<skip> of zero gives you an N-asterisk. A C<skip> of one gives
 you a regular polygon. A C<skip> of two gives you a star. And so forth.
