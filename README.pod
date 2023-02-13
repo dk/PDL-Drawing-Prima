@@ -36,10 +36,10 @@ would do the following:
 
 
   # Linux/Mac           # Windows
-  perl Build.PL         perl Build.PL
-  ./Build               Build
-  ./Build test          Build test
-  ./Build install       Build install
+  perl Makefile.PL      perl Makefile.PL
+  make                  gmake
+  make test             gmake test
+  make install          gmake install
 
 The test suite is tiny at the moment. I apologize. To make up for it, you
 can look into the examples directory and see if they work. A more
@@ -72,7 +72,7 @@ the Prima package that comes with Debian's repository. Last time I checked,
 the Prima Debian package was improperly built and does not list the correct
 location of Prima's CORE directory. That makes it impossible to link against
 F<apricot.h> (Prima's main library). I may be able to write a special
-exception into the F<Build.PL> for this, but I haven't gotten around to it
+exception into the F<Makefile.PL> for this, but I haven't gotten around to it
 yet.
 
 

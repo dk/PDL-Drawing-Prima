@@ -24,8 +24,8 @@ jobs:
             cpanm --notest Prima PDL
       - name: Build
         run: |
-            perl Build.PL
-            ./Build
+            perl Makefile.PL
+            make
       - name: Test
         run: |
-            ./Build test
+            make test
