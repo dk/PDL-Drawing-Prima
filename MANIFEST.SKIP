@@ -6,9 +6,7 @@ better_setters\.txt
 \.xs
 ^MYMETA\.yml$
 \.git
-_build
 MANIFEST\.SKIP
-Build
 ^MYMETA\.json$
 blib
 pm_to_blib
