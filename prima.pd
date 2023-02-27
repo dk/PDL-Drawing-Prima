@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-our $VERSION = '0.16';
+our $VERSION = '0.17';
 pp_setversion($VERSION);
 
 use Carp qw(croak confess);
@@ -27,7 +27,7 @@ PDL::Drawing::Prima - PDL-aware drawing functions for Prima widgets
 
 =for podview <img src="PDL/Drawing/Prima/pod/sin.png">
 
-=for html <p><img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/sin.png">
+=for html <p><img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/pod/sin.png">
 
 Each of the methods comes with a small sample snippet. To see how it
 looks, copy this synopsis and replace the code in the
@@ -3183,7 +3183,7 @@ would give you a pentagon:
 
 =for html <p>
 <figure>
-<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip1.png">
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/pod/skip1.png">
 <figcaption>skip = 1</figcaption>
 </figure>
 <!--
@@ -3213,7 +3213,7 @@ In contrast, a five-sided polygon with a skip of 2 will give you a star:
 
 =for html <p>
 <figure>
-<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip2.png">
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/pod/skip2.png">
 <figcaption>skip = 2</figcaption>
 </figure>
 <!--
@@ -3243,7 +3243,7 @@ in which the vertices are drawn is different:
 
 =for html <p>
 <figure>
-<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip3.png">
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/pod/skip3.png">
 <figcaption>skip = 3</figcaption>
 </figure>
 <!--
@@ -3273,7 +3273,7 @@ the center.> In other words, create an asterisk:
 
 =for html <p>
 <figure>
-<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/lib/PDL/Drawing/Prima/pod/skip0.png">
+<img src="https://raw.githubusercontent.com/dk/PDL-Drawing-Prima/master/pod/skip0.png">
 <figcaption>skip = 0</figcaption>
 </figure>
 <!--
