@@ -52,7 +52,7 @@ Development setup
 
 I find that I forget to update my Changes file without a commit hook to remind
 me. That commit hook is distributed with this repository, called
-F<git-pre-commit-hook.pl>. After you have cloned this repository, you can enable
+git-pre-commit-hook.pl. After you have cloned this repository, you can enable
 it by copying it to your repo's commit hooks directory with something like this:
 
   cp git-pre-commit-hook.pl .git/hooks/pre-commit
@@ -73,8 +73,8 @@ There is another potential hurdle installing this module if you are using
 the Prima package that comes with Debian's repository. Last time I checked,
 the Prima Debian package was improperly built and does not list the correct
 location of Prima's CORE directory. That makes it impossible to link against
-F<apricot.h> (Prima's main library). I may be able to write a special
-exception into the F<Makefile.PL> for this, but I haven't gotten around to it
+apricot.h (Prima's main library). I may be able to write a special
+exception into the Makefile.PL for this, but I haven't gotten around to it
 yet.
 
 
