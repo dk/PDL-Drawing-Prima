@@ -22,6 +22,5 @@ README.pod
 t/00-load-main.t
 t/01-load-utils.t
 t/10-line-drawing.t
-typemap
 utils/Makefile.PL
 utils/utils.pd
