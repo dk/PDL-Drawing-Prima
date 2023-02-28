@@ -1,6 +1,5 @@
-=head1 PDL::Drawing::Prima
-
-=for HTML <p><img src="https://travis-ci.org/run4flat/PDL-Drawing-Prima.svg?branch=master" alt="Travis-CI status" /></p>
+PDL::Drawing::Prima
+===================
 
 A PDL interface to the Prima drawing commands.
 
@@ -12,14 +11,15 @@ provides a way to quickly perform many drawing operations on Prima Widgets.
 
 Prima makes it very easy to call subclassed functions from C code (and
 therefore PDL::PP code), so these bindings perform the drawing operations on
-any object whose class is derived from L<Prima::Drawable>. This means that
+any object whose class is derived from Prima::Drawable. This means that
 you can perform these drawing operations on Widgets, rasterized canvases,
 and even Postscript canvases.
 
 For more information about this module and what it provides, see the
-documentation for L<PDL::Drawing::Prima>.
+documentation for PDL::Drawing::Prima.
 
-=head1 INSTALLATION
+Installation
+============
 
 There are a number of ways to install this module. The simplest is to
 install it using CPAN:
@@ -47,16 +47,18 @@ comprehensive test suite is on the list of things to do next.
 If this project gets a bit of momentum behind it, I truly hope that the
 test suite gets some much-needed attention.
 
-=head1 DEV SETUP
+Development setup
+=================
 
 I find that I forget to update my Changes file without a commit hook to remind
 me. That commit hook is distributed with this repository, called
 F<git-pre-commit-hook.pl>. After you have cloned this repository, you can enable
 it by copying it to your repo's commit hooks directory with something like this:
 
- cp git-pre-commit-hook.pl .git/hooks/pre-commit
+  cp git-pre-commit-hook.pl .git/hooks/pre-commit
 
-=head1 DEPENDENCIES
+Dependencies
+============
 
 The installation of this module depends on a working C compiler. It also
 depends on the Perl Data Language and the Prima GUI toolkit. You can
@@ -76,14 +78,15 @@ exception into the F<Makefile.PL> for this, but I haven't gotten around to it
 yet.
 
 
-=head1 CODE REPOSITORY
+Code repository
+===============
 
 This project is being actively developed at Github. Find the latest at:
 
- https://github.com/run4flat/PDL-Drawing-Prima
+  https://github.com/dk/PDL-Drawing-Prima
 
-
-=head1 COPYRIGHT AND LICENCE
+Copyright and licence
+=====================
 
 Portions of this module's code are copyright (c) 2011 The Board of Trustees at
 the University of Illinois.
@@ -102,3 +105,5 @@ Author: David Mertens <dcmertens.perl.csharp@gmail.com>
 
 Note that my email is intentionally obfuscated. Knowing that I am a
 Perl programmer, you can probably remove the part that does not belong.
+
+Currently supported by: Dmitry Karasik <dmitry@karasik.eu.org>

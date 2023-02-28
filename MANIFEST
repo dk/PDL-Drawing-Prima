@@ -18,7 +18,7 @@ pod/skip1.png
 pod/skip2.png
 pod/skip3.png
 prima.pd
-README.pod
+README.md
 t/00-load-main.t
 t/01-load-utils.t
 t/10-line-drawing.t
