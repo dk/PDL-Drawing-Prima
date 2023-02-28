@@ -1,3 +1,7 @@
+Changes
+examples/game-of-life.pl
+examples/Kuramoto.pl
+examples/test-antialiased.pl
 examples/test-collate.pl
 examples/test-poly.pl
 examples/test-ps.pl
@@ -6,19 +10,17 @@ examples/test-symbols.pl
 examples/test.pl
 examples/test4.pl
 examples/test_simple.pl
-examples/Kuramoto.pl
-examples/game-of-life.pl
+Makefile.PL
+MANIFEST			This list of files
 pod/sin.png
 pod/skip0.png
 pod/skip1.png
 pod/skip2.png
 pod/skip3.png
 prima.pd
-utils/utils.pd
-Makefile.PL
-MANIFEST
 README.pod
-typemap
 t/00-load-main.t
 t/01-load-utils.t
 t/10-line-drawing.t
+utils/Makefile.PL
+utils/utils.pd
