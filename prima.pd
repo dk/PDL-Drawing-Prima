@@ -1650,7 +1650,7 @@ DOC_STRING
 
 my @properties = extract_properties_from($doc_string);
 pp_def('prima_arcs',
-	Pars => 'x(); y(); x_diameter(); y_diameter();
+	Pars => 'double x(); double y(); double x_diameter(); double y_diameter();
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
@@ -1724,7 +1724,7 @@ DOC_STRING
 
 @properties = extract_properties_from($doc_string);
 pp_def('prima_bars',
-	Pars => 'x1(); y1(); x2(); y2(); ' . generate_pars_args_for(@properties),
+	Pars => 'double x1(); double y1(); double x2(); double y2(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
 	PMFunc => undef,
@@ -1819,8 +1819,8 @@ DOC_STRING
 
 @properties = extract_properties_from $doc_string;
 pp_def('prima_chords',
-	Pars => 'x(); y(); x_diameter(); y_diameter();
-			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
+	Pars => 'double x(); double y(); double x_diameter(); double y_diameter();
+			double start_angle(); double end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
 	PMFunc => undef,
@@ -1977,7 +1977,7 @@ DOC_STRING
 
 @properties = qw(colors backColors clipRects linePatterns lineWidths rops rop2s );
 pp_def('prima_ellipses',
-	Pars => 'x(); y(); x_diameter(); y_diameter();'
+	Pars => 'double x(); double y(); double x_diameter(); double y_diameter();'
 			. generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
@@ -2044,7 +2044,7 @@ DOC_STRING
 
 @properties = extract_properties_from($doc_string);
 pp_def('prima_fill_chords',
-	Pars => 'x(); y(); x_diameter(); y_diameter();
+	Pars => 'double x(); double y(); double x_diameter(); double y_diameter();
 			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
@@ -2125,7 +2125,7 @@ DOC_STRING
 
 @properties = extract_properties_from($doc_string);
 pp_def('prima_fill_ellipses',
-	Pars => 'x(); y(); x_diameter(); y_diameter();' . generate_pars_args_for(@properties),
+	Pars => 'double x(); double y(); double x_diameter(); double y_diameter();' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['L'],
 	PMFunc => undef,
@@ -2372,8 +2372,8 @@ DOC_STRING
 
 @properties = extract_properties_from($doc_string);
 pp_def('prima_fill_sectors',
-	Pars => 'x(); y(); x_diameter(); y_diameter();
-			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
+	Pars => 'double x(); double y(); double x_diameter(); double y_diameter();
+			double start_angle(); double end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
 	PMFunc => undef,
@@ -3063,8 +3063,8 @@ DOC_STRING
 
 @properties = extract_properties_from($doc_string);
 pp_def('prima_sectors',
-	Pars => 'x(); y(); x_diameter(); y_diameter();
-			start_angle(); end_angle(); ' . generate_pars_args_for(@properties),
+	Pars => 'double x(); double y(); double x_diameter(); double y_diameter();
+			double start_angle(); double end_angle(); ' . generate_pars_args_for(@properties),
 	OtherPars => $default_other_pars,
 	GenericTypes => ['D'],
 	PMFunc => undef,
