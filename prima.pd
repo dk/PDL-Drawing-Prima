@@ -2213,7 +2213,7 @@ Resizing the window will result in a similar rendering that fits the aspect
 ratio of your (resized) window.
 
 Compare to the Prima method L<Prima::Drawable/fillpoly>. See also
-L</pdl_bars> and L<pdl_polylines>.
+L</pdl_bars> and L</pdl_polylines>.
 
 =cut
 
@@ -2469,7 +2469,7 @@ both shapes filled. Resizing the window will lead to randomly changed
 positions for those space-ship looking things.
 
 Compare to the Prima method L<Prima::Drawable/flood_fill>. See also
-L<pdl_clears> and the various fill-based drawing methods.
+L</pdl_clears> and the various fill-based drawing methods.
 
 =cut
 
@@ -2524,7 +2524,7 @@ lineJoins, linePatterns, lineWidths, rops, rop2s.
 In contrast to polylines, which are supposed to be connected, these
 lines are meant to be independent. Also note that this method does make an
 effort to handle bad values, both the IEEE sort (nan, inf) and the official
-PDL bad values. See L<pdl_polylines> for a discussion of what might constitute
+PDL bad values. See L</pdl_polylines> for a discussion of what might constitute
 proper bad value handling.
 
 =for example
@@ -2532,7 +2532,7 @@ proper bad value handling.
  working here
 
 Compare to the Prima methods L<Prima::Drawable/lines> and
-L<Prima::Drawable/lines>. See also L<pdl_polylines>.
+L<Prima::Drawable/lines>. See also L</pdl_polylines>.
 
 =cut
 
@@ -2782,8 +2782,8 @@ do better to use L<PDL::Graphics::Prima> to create plots):
  my $y = ( sin($x / 20) + 1 ) * 50;
  $canvas->pdl_polylines($x, $y);
 
-Compare to the Prima method L<Prima::Drawable/polyline>. See also L<pdl_lines>
-and L<pdl_fillpolys>.
+Compare to the Prima method L<Prima::Drawable/polyline>. See also L</pdl_lines>
+and L</pdl_fillpolys>.
 
 =cut
 
@@ -3054,7 +3054,7 @@ or glass-half-empty sort of person.
 
 Compare to the Prima method L<Prima::Drawable/sector>. The filled equivalent
 is L</pdl_fill_sectors>. There is a whole slew of arc-based drawing methods
-including L</pdl_arcs>, L</pdl_chords>, and L<pdl_ellipses> along with their
+including L</pdl_arcs>, L</pdl_chords>, and L</pdl_ellipses> along with their
 filled equivalents. You may also be interested in L<Prima::Drawable/spline>,
 which does not yet have a PDL interface.
 
