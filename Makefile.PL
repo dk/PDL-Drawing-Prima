@@ -25,7 +25,7 @@ WriteMakefile(
 	CONFIGURE_REQUIRES => {
 		'ExtUtils::MakeMaker' => 0,
 		PDL            => '2.037',
-		Prima          => '1.57',
+		Prima          => '1.74',
 	},
 	PREREQ_PM => {
 		PDL            => '2.037',
