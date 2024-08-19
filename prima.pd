@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-our $VERSION = '0.18';
+our $VERSION = '0.19';
 pp_setversion($VERSION);
 
 use Carp qw(croak confess);
