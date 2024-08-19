@@ -3384,10 +3384,10 @@ $code = 	q{
 			else if ($N_points() == 0 || $N_points() == 1) {
 				/* Handle the circle case up-front */
 				if ($filled() == 0) {
-					call_perl( widget_handle, "ellipse", "nnnn", $x(), $y(), 2*$size(), 2*$size());
+					call_perl( widget_handle, "ellipse", "nnii", $x(), $y(), 2*$size(), 2*$size());
 				}
 				else {
-					call_perl( widget_handle, "fill_ellipse", "nnnn", $x(), $y(), 2*$size(), 2*$size());
+					call_perl( widget_handle, "fill_ellipse", "nnii", $x(), $y(), 2*$size(), 2*$size());
 				}
 			}
 			else if (
